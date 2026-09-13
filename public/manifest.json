@@ -1,0 +1,37 @@
+{
+  "id": "/",
+  "short_name": "जनसेवा",
+  "name": "जनसेवा - Janseva",
+  "icons": [
+    {
+      "src": "/image copy 3.png",
+      "type": "image/png",
+      "sizes": "192x192",
+      "purpose": "any"
+    },
+    {
+      "src": "/image copy 3.png",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "any"
+    },
+    {
+      "src": "/image copy 3.png",
+      "type": "image/png",
+      "sizes": "192x192",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/image copy 3.png",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "maskable"
+    }
+  ],
+  "start_url": "/",
+  "scope": "/",
+  "background_color": "#ffffff",
+  "theme_color": "#EA580C",
+  "display": "standalone",
+  "orientation": "portrait"
+}
