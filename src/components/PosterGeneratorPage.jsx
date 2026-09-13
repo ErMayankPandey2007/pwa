@@ -884,8 +884,8 @@ export default function PosterGeneratorPage() {
     if (url) {
       shareContent({
         title: `${leaderName || appTitle} Poster`,
-        text: `${userName ? `${userName} - ${userDesignation}` : (leaderName || 'Poster')}\n${window.location.origin}`,
-        url: window.location.href
+        text: `${userName ? `${userName} - ${userDesignation}` : (leaderName || 'Poster')}`,
+        url: window.location.pathname
       });
     }
   };

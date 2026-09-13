@@ -38,6 +38,14 @@ export function getMediaUrl(url, fallback = null) {
     clean = clean.substring(embeddedHttpIndex);
   }
 
+  // If a legacy image path contains localhost or 127.0.0.1 with /uploads/, re-route to current backend base
+  if (clean.includes('localhost:') || clean.includes('127.0.0.1:') || clean.includes('localhost/')) {
+    const uploadIndex = clean.indexOf('/uploads/');
+    if (uploadIndex !== -1) {
+      return `${BACKEND_BASE}${clean.substring(uploadIndex)}`;
+    }
+  }
+
   // If already absolute URL (http / https / blob / data)
   if (clean.startsWith('http://') || clean.startsWith('https://') || clean.startsWith('blob:') || clean.startsWith('data:')) {
     return clean;

@@ -1,13 +1,67 @@
 import { toast } from 'react-toastify';
 
+export function getLiveBaseUrl() {
+  const envAppUrl = import.meta.env.VITE_APP_URL || import.meta.env.VITE_PUBLIC_URL || import.meta.env.VITE_FRONTEND_URL;
+  if (envAppUrl) {
+    return envAppUrl.replace(/\/+$/, '');
+  }
+  if (typeof window !== 'undefined' && window.location?.origin) {
+    const origin = window.location.origin;
+    if (!origin.includes('localhost') && !origin.includes('127.0.0.1')) {
+      return origin;
+    }
+  }
+  const apiBase = import.meta.env.VITE_API_BASE_URL;
+  if (apiBase && !apiBase.includes('localhost') && !apiBase.includes('127.0.0.1')) {
+    return apiBase.replace(/\/+$/, '');
+  }
+  return 'https://election.digicoders.in';
+}
+
+export function sanitizeShareUrl(url) {
+  const liveBase = getLiveBaseUrl();
+  if (!url) {
+    const path = typeof window !== 'undefined' ? `${window.location.pathname}${window.location.search}` : '';
+    return `${liveBase}${path}`;
+  }
+  let cleanUrl = String(url).trim();
+
+  // If URL has localhost or 127.0.0.1, replace origin with liveBase
+  if (cleanUrl.includes('localhost') || cleanUrl.includes('127.0.0.1')) {
+    try {
+      const parsed = new URL(cleanUrl);
+      return `${liveBase}${parsed.pathname}${parsed.search}${parsed.hash}`;
+    } catch {
+      return cleanUrl.replace(/^https?:\/\/[^\/]+/, liveBase);
+    }
+  }
+
+  // If it's a relative path starting with /
+  if (cleanUrl.startsWith('/')) {
+    return `${liveBase}${cleanUrl}`;
+  }
+
+  return cleanUrl;
+}
+
+export function sanitizeShareText(text) {
+  if (!text) return '';
+  let cleanText = String(text);
+  const liveBase = getLiveBaseUrl();
+  // Replace any http://localhost:port or http://127.0.0.1:port in text with liveBase
+  cleanText = cleanText.replace(/https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?/gi, liveBase);
+  cleanText = cleanText.replace(/(localhost|127\.0\.0\.1):\d+/gi, liveBase.replace(/^https?:\/\//, ''));
+  return cleanText;
+}
+
 /**
  * Pure Direct Native Device Share
  * Triggers the exact Android / iOS device share drawer (which shows all user's installed apps, contacts, quick share etc.)
  */
 export async function shareContent({ title, text, url }) {
-  const shareUrl = url || window.location.href;
+  const shareUrl = sanitizeShareUrl(url);
   const shareTitle = title || '';
-  const shareText = text || '';
+  const shareText = sanitizeShareText(text);
 
   if (typeof navigator !== 'undefined' && navigator.share) {
     try {
@@ -26,10 +80,11 @@ export async function shareContent({ title, text, url }) {
     }
   }
 
-  // If on desktop browser without web share support, notify user
+  // If on desktop browser without web share support, notify user & copy
   try {
     if (navigator.clipboard && navigator.clipboard.writeText) {
-      await navigator.clipboard.writeText(shareUrl);
+      const fullText = shareText ? `${shareText}\n${shareUrl}` : shareUrl;
+      await navigator.clipboard.writeText(fullText);
       toast.info('🔗 लिंक कॉपी हो गया!');
     }
   } catch (e) {

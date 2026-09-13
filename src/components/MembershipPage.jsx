@@ -147,7 +147,14 @@ export default function MembershipPage() {
           const photo = resolvedPhoto ? await toDataUrl(resolvedPhoto) : null;
 
           const mNum = cardRes.membershipNumber || `MEM-${Date.now()}`;
-          const vUrl = cardRes.verificationUrl || `${window.location.origin}/membership/verify/${mNum}`;
+          let vUrl = cardRes.verificationUrl;
+          const isLocalhostUrl = (url) => !url || url.includes('localhost') || url.includes('127.0.0.1') || url.includes(':3001');
+          const isLiveApp = typeof window !== 'undefined' && !window.location.hostname.includes('localhost') && !window.location.hostname.includes('127.0.0.1');
+
+          if (!vUrl || (isLocalhostUrl(vUrl) && (isLiveApp || import.meta.env.VITE_API_BASE_URL))) {
+            const apiBase = import.meta.env.VITE_API_BASE_URL || (typeof window !== 'undefined' ? window.location.origin : '');
+            vUrl = `${apiBase.replace(/\/+$/, '')}/membership/verify/${mNum}`;
+          }
 
           // Generate scannable QR Code
           try {
