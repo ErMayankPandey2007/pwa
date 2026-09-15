@@ -366,11 +366,14 @@ export default function MyProfilePage() {
     setUploadingPhoto(true);
 
     try {
-      // Create high-res 400x400 avatar canvas
+      // Preview circle size is 240x240, export canvas size is 480x480 (2x quality)
       const canvas = document.createElement('canvas');
-      const size = 400;
-      canvas.width = size;
-      canvas.height = size;
+      const exportSize = 480;
+      const previewSize = 240;
+      const ratio = exportSize / previewSize; // 2
+
+      canvas.width = exportSize;
+      canvas.height = exportSize;
       const ctx = canvas.getContext('2d');
 
       const img = new Image();
@@ -384,27 +387,27 @@ export default function MyProfilePage() {
 
       // Clear & fill background
       ctx.fillStyle = '#ffffff';
-      ctx.fillRect(0, 0, size, size);
+      ctx.fillRect(0, 0, exportSize, exportSize);
 
-      // Compute transform
-      const scale = zoomLevel;
-      const aspect = img.width / img.height;
-      let drawW, drawH;
-      if (aspect >= 1) {
-        drawH = size * scale;
-        drawW = size * aspect * scale;
+      // In the preview, an image with objectFit: 'contain' inside a 240x240 container:
+      let baseW, baseH;
+      if (img.width >= img.height) {
+        baseW = previewSize;
+        baseH = (img.height / img.width) * previewSize;
       } else {
-        drawW = size * scale;
-        drawH = (size / aspect) * scale;
+        baseH = previewSize;
+        baseW = (img.width / img.height) * previewSize;
       }
 
-      // Offset
-      const drawX = (size - drawW) / 2 + (panPosition.x * (size / 240));
-      const drawY = (size - drawH) / 2 + (panPosition.y * (size / 240));
+      // Applying zoom and pan from preview
+      const drawW = baseW * zoomLevel * ratio;
+      const drawH = baseH * zoomLevel * ratio;
+      const drawX = (exportSize - drawW) / 2 + (panPosition.x * ratio);
+      const drawY = (exportSize - drawH) / 2 + (panPosition.y * ratio);
 
       ctx.drawImage(img, drawX, drawY, drawW, drawH);
 
-      const base64Photo = canvas.toDataURL('image/jpeg', 0.88);
+      const base64Photo = canvas.toDataURL('image/jpeg', 0.90);
 
       // Save to backend safe citizen profile endpoint
       let uploadedUrl = base64Photo;
@@ -538,17 +541,27 @@ export default function MyProfilePage() {
 
               <div className="flex items-center gap-1.5 flex-wrap">
                 {isLoggedIn ? (
-                  <span
-                    className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[0.65rem] font-extrabold border"
-                    style={{
-                      backgroundColor: `${primaryColor}15`,
-                      color: primaryColor,
-                      borderColor: `${primaryColor}30`
-                    }}
-                  >
-                    <HiSparkles className="w-3 h-3" />
-                    <span>Verified Citizen</span>
-                  </span>
+                  (user.isRegistered || user.isProfileComplete) ? (
+                    <span
+                      className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[0.65rem] font-extrabold border"
+                      style={{
+                        backgroundColor: `${primaryColor}15`,
+                        color: primaryColor,
+                        borderColor: `${primaryColor}30`
+                      }}
+                    >
+                      <HiSparkles className="w-3 h-3" />
+                      <span>Verified Citizen</span>
+                    </span>
+                  ) : (
+                    <button
+                      onClick={() => navigate('/register')}
+                      className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-[0.7rem] font-black text-white shadow-xs active:scale-95 transition-all"
+                      style={{ backgroundColor: primaryColor }}
+                    >
+                      <span>Complete Registration</span>
+                    </button>
+                  )
                 ) : (
                   <button
                     onClick={() => navigate('/login')}
@@ -743,9 +756,9 @@ export default function MyProfilePage() {
 
             {/* Circular Crop Viewport */}
             <div className="relative bg-slate-950 flex items-center justify-center overflow-hidden py-8 select-none">
-              {/* Target Circular Area Mask */}
+              {/* Target Circular Area Mask (240x240) */}
               <div
-                className="relative w-56 h-56 rounded-full overflow-hidden border-4 border-white shadow-2xl cursor-grab active:cursor-grabbing"
+                className="relative w-60 h-60 rounded-full overflow-hidden border-4 border-white shadow-2xl cursor-grab active:cursor-grabbing bg-black/40 flex items-center justify-center"
                 onMouseDown={handleMouseDown}
                 onMouseMove={handleMouseMove}
                 onMouseUp={handleMouseUp}
@@ -762,10 +775,8 @@ export default function MyProfilePage() {
                     className="max-w-none absolute pointer-events-none origin-center"
                     style={{
                       transform: `translate(${panPosition.x}px, ${panPosition.y}px) scale(${zoomLevel})`,
-                      top: 0,
-                      left: 0,
-                      width: '100%',
-                      height: '100%',
+                      width: '240px',
+                      height: '240px',
                       objectFit: 'contain',
                     }}
                   />

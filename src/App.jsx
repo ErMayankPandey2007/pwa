@@ -44,7 +44,6 @@ import PhotoGalleryPage from './components/PhotoGalleryPage';
 import VideoGalleryPage from './components/VideoGalleryPage';
 import LatestUpdatesPage from './components/LatestUpdatesPage';
 import MenuPage from './components/MenuPage';
-import InstallPWAButton from './components/InstallPWAButton';
 
 // Placeholder component for future pages
 const Placeholder = ({ name }) => (
@@ -115,8 +114,6 @@ export default function App() {
                 <Route path="*" element={<Placeholder name="404 Not Found" />} />
               </Routes>
             </div>
-            {/* Floating PWA Install Prompt Button for browser users */}
-            <InstallPWAButton />
           </div>
         </Router>
       </LanguageProvider>

@@ -94,10 +94,10 @@ export default function SplashPage() {
       <div className="absolute top-6 right-6 z-30 flex items-center gap-2">
         <button
           onClick={handleSkipToLogin}
-          className="px-4 py-1.5 rounded-full text-xs font-bold text-white shadow-lg backdrop-blur-md bg-black/40 border border-white/20 hover:bg-black/60 active:scale-95 transition-all flex items-center gap-1.5 cursor-pointer"
+          className="px-4 py-1.5 rounded-full text-xs font-bold text-gray-800 shadow-md backdrop-blur-md bg-white/80 border border-gray-200 hover:bg-white active:scale-95 transition-all flex items-center gap-1.5 cursor-pointer"
         >
           <span>Open App</span>
-          <svg className="w-3.5 h-3.5 text-white/90" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+          <svg className="w-3.5 h-3.5 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
             <path strokeLinecap="round" strokeLinejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" />
           </svg>
         </button>
@@ -105,7 +105,7 @@ export default function SplashPage() {
 
       {/* Media / Splash Screen from Backend API */}
       {currentMediaUrl ? (
-        <div className="absolute inset-0 w-full h-full z-0 flex items-center justify-center bg-black">
+        <div className="absolute inset-0 w-full h-full z-0 flex items-center justify-center bg-white p-6">
           {isVideo ? (
             <video
               key={currentMediaUrl}
@@ -114,14 +114,14 @@ export default function SplashPage() {
               muted
               playsInline
               loop
-              className="w-full h-full object-cover"
+              className="w-full h-full max-w-md max-h-[75vh] object-contain"
             />
           ) : (
             <img
               key={currentMediaUrl}
               src={currentMediaUrl}
               alt="Splash Screen"
-              className="w-full h-full object-cover"
+              className="w-full h-full max-w-md max-h-[75vh] object-contain drop-shadow-sm"
               onError={(e) => {
                 e.target.style.display = 'none';
               }}
@@ -205,8 +205,9 @@ export default function SplashPage() {
                 key={idx}
                 onClick={() => setCurrentStep(idx)}
                 className={`h-2 rounded-full transition-all ${
-                  currentStep === idx ? 'w-6 bg-white shadow-lg' : 'w-2 bg-white/50'
+                  currentStep === idx ? 'w-6 shadow-md' : 'w-2 bg-gray-300'
                 }`}
+                style={currentStep === idx ? { backgroundColor: activePrimary } : {}}
               ></button>
             ))}
           </div>
@@ -214,12 +215,12 @@ export default function SplashPage() {
       </div>
 
       {/* Bottom Action Bar with Prev & Next / Enter App */}
-      <div className="w-full p-6 z-20 relative flex items-center justify-between gap-3 bg-gradient-to-t from-black/80 via-black/40 to-transparent">
+      <div className="w-full p-6 z-20 relative flex items-center justify-between gap-3 bg-gradient-to-t from-white/95 via-white/70 to-transparent">
         {totalSteps > 1 ? (
           <>
             <button
               onClick={handlePrevStep}
-              className="px-6 py-3 rounded-xl font-bold text-sm text-white/90 bg-white/20 hover:bg-white/30 backdrop-blur-md transition-all active:scale-95 flex items-center gap-1.5 cursor-pointer"
+              className="px-6 py-3 rounded-xl font-bold text-sm text-gray-700 bg-gray-100 hover:bg-gray-200 border border-gray-200 transition-all active:scale-95 flex items-center gap-1.5 cursor-pointer shadow-xs"
             >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M11 17l-5-5m0 0l5-5m-5 5h12" />
