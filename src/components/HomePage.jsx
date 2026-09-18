@@ -933,7 +933,13 @@ export default function HomePage() {
                     <div key={proj._id || proj.id} onClick={() => guardAction(() => navigate(`/works/${proj._id || proj.id}`))} className="shrink-0 w-40 rounded-2xl overflow-hidden border border-gray-100 shadow-sm cursor-pointer active:scale-[0.97] transition-transform">
                       <div className="w-full h-24 relative overflow-hidden bg-gray-100">
                         <img
-                          src={getMediaUrl(proj.coverImageUrl || proj.img, '/highway_project.jpg')}
+                          src={getMediaUrl(
+                            (Array.isArray(proj.images) && proj.images.length > 0 ? proj.images[0] : null) ||
+                            proj.coverImageUrl || 
+                            proj.imageUrl || 
+                            proj.img, 
+                            '/highway_project.jpg'
+                          )}
                           alt={proj.title}
                           className="w-full h-full object-cover"
                           onError={(e) => { e.target.src = '/highway_project.jpg'; }}
