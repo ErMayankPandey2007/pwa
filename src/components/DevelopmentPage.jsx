@@ -1,42 +1,60 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { HiArrowLeft } from 'react-icons/hi2';
 import BottomNav from './BottomNav';
 import LoadingSpinner from './LoadingSpinner';
 import { api } from '../services/api';
+import { storage } from '../services/storage';
+import { toast } from 'react-toastify';
 import { useTenant } from '../context/TenantContext';
 import { useLanguage } from '../context/LanguageContext';
 import { getMediaUrl } from '../utils/mediaUrl';
 
 export default function DevelopmentPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { t } = useLanguage();
   const { primaryColor, secondaryColor } = useTenant();
-  const [activeFilter, setActiveFilter] = useState('All');
+  
+  const initialCategory = location.state?.category || new URLSearchParams(location.search).get('category') || 'All';
+  const [activeFilter, setActiveFilter] = useState(initialCategory);
   const [searchQuery, setSearchQuery] = useState('');
   const [works, setWorks] = useState([]);
-  const [categories, setCategories] = useState(['All', 'Road', 'Education', 'Health', 'Electricity', 'Water', 'Infrastructure']);
+  const [categories, setCategories] = useState(['All']);
   const [isLoading, setIsLoading] = useState(true);
   const tabsRef = useRef(null);
+
+  useEffect(() => {
+    const cat = location.state?.category || new URLSearchParams(location.search).get('category');
+    if (cat) {
+      setActiveFilter(cat);
+    }
+  }, [location.state, location.search]);
 
   useEffect(() => {
     const fetchWorks = async () => {
       try {
         setIsLoading(true);
-        const params = {};
-        if (activeFilter !== 'All') {
-          params.category = activeFilter;
-        }
-        const res = await api.getWorks(params).catch(() => []);
-        const list = Array.isArray(res) ? res : (res?.data || []);
-        setWorks(list);
+        const res = await api.getWorks({ limit: 100 }).catch(() => []);
+        const list = Array.isArray(res) 
+          ? res 
+          : (Array.isArray(res?.data?.data) 
+            ? res.data.data 
+            : (Array.isArray(res?.data) 
+              ? res.data 
+              : (Array.isArray(res?.items) ? res.items : [])));
+        
+        // Dynamically extract unique categories from all works
+        const dynamicCats = [
+          'All',
+          ...Array.from(new Set(list.map(w => (w.category || '').trim()).filter(Boolean)))
+        ];
+        setCategories(dynamicCats);
 
-        // Dynamically collect categories
-        if (list.length > 0 && activeFilter === 'All') {
-          const dynamicCats = ['All', ...new Set(list.map(w => w.category).filter(Boolean))];
-          if (dynamicCats.length > 1) {
-            setCategories(dynamicCats);
-          }
+        if (!activeFilter || activeFilter === 'All') {
+          setWorks(list);
+        } else {
+          setWorks(list.filter(w => (w.category || '').trim().toLowerCase() === activeFilter.trim().toLowerCase()));
         }
       } catch (err) {
         console.warn('Error fetching works:', err);
@@ -167,7 +185,14 @@ export default function DevelopmentPage() {
                 return (
                   <div 
                     key={workId} 
-                    onClick={() => navigate(`/works/${workId}`)}
+                    onClick={() => {
+                      if (!storage.isRegistered()) {
+                        toast.warn('ऐप इस्तेमाल करने के लिए रजिस्ट्रेशन करना जरूरी है!', { toastId: 'reg-req' });
+                        window.dispatchEvent(new CustomEvent('pwa_open_registration'));
+                        return;
+                      }
+                      navigate(`/works/${workId}`);
+                    }}
                     className="bg-white rounded-2xl p-3.5 flex gap-4 shadow-sm border border-gray-100 items-center cursor-pointer transition-transform active:scale-[0.98] hover:shadow-md hover:border-gray-300"
                   >
                     {/* Image */}

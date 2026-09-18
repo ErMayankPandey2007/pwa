@@ -10,6 +10,7 @@ import UserAvatar from './UserAvatar';
 import CompleteProfileModal from './CompleteProfileModal';
 import { FaXTwitter, FaFacebookF, FaInstagram, FaYoutube } from 'react-icons/fa6';
 import { HiLanguage } from 'react-icons/hi2';
+import { toast } from 'react-toastify';
 import { getMediaUrl } from '../utils/mediaUrl';
 import { shareContent } from '../utils/shareAndDownload';
 
@@ -34,31 +35,52 @@ export default function HomePage() {
 
   const handleShareBanner = async (e, slide) => {
     e.stopPropagation();
-    shareContent({
-      title: slide.title || 'Vidyak Banner',
-      text: slide.desc || slide.title || 'Check out this update',
-      url: slide.linkUrl || window.location.href,
+    guardAction(() => {
+      shareContent({
+        title: slide.title || 'Vidyak Banner',
+        text: slide.desc || slide.title || 'Check out this update',
+        url: slide.linkUrl || window.location.href,
+      });
     });
   };
 
   const handleOpenBanner = (e, slide) => {
     e.stopPropagation();
-    setSelectedBannerModal(slide);
+    guardAction(() => {
+      setSelectedBannerModal(slide);
+    });
   };
 
   useEffect(() => {
     const fetchUnread = async () => {
       const slug = api.getTenantSlug();
-      if (!slug) return;
+      const token = api.getToken() || storage.getToken();
+      if (!slug || !token) return;
       try {
         const count = await api.getNotificationUnreadCount().catch(() => 0);
         setUnreadCount(typeof count === 'number' ? count : (count?.count || 0));
       } catch (err) {
-        console.warn('Error fetching unread count:', err);
+        // Silently ignore for guest/unauthenticated sessions
       }
     };
     fetchUnread();
   }, []);
+
+  const isUserRegistered = () => {
+    return storage.isRegistered();
+  };
+
+  const guardAction = (actionCallback) => {
+    if (!isUserRegistered()) {
+      toast.warn('ऐप इस्तेमाल करने के लिए रजिस्ट्रेशन करना जरूरी है!', { toastId: 'reg-req' });
+      setShowIncompleteProfileModal(true);
+      return false;
+    }
+    if (typeof actionCallback === 'function') {
+      actionCallback();
+    }
+    return true;
+  };
 
   useEffect(() => {
     const user = storage.getUser();
@@ -75,32 +97,23 @@ export default function HomePage() {
             const updated = {
               ...(user || {}),
               ...res.profile,
+              isRegistered: true,
+              isProfileComplete: true,
               photo: res.profile.profilePhoto || res.profile.photo || user?.photo,
               profilePhoto: res.profile.profilePhoto || res.profile.photo || user?.profilePhoto,
             };
             setCurrentUser(updated);
             storage.setUser(updated);
-
-            // If profile is incomplete, check if dismissed recently, otherwise show popup
-            const hasSkippedPopup = sessionStorage.getItem('pwa_skipped_profile_popup');
-            if (updated.isProfileComplete === false && !hasSkippedPopup) {
-              setShowIncompleteProfileModal(true);
-            }
           }
         }).catch(() => null);
-      } else {
-        // Local check
-        if (user && user.isProfileComplete === false) {
-          const hasSkippedPopup = sessionStorage.getItem('pwa_skipped_profile_popup');
-          if (!hasSkippedPopup) {
-            setShowIncompleteProfileModal(true);
-          }
-        }
       }
 
       // If no tenant slug is configured in .env, do not fetch tenant data from backend.
       if (!currentSlug) {
         setIsLoading(false);
+        if (!isUserRegistered(user)) {
+          setShowIncompleteProfileModal(true);
+        }
         return;
       }
 
@@ -169,7 +182,13 @@ export default function HomePage() {
 
         // 6. Fetch Development Works (All works visible in slider)
         const worksRes = await api.getWorks({ limit: 100 }).catch(() => []);
-        const worksList = Array.isArray(worksRes) ? worksRes : (worksRes?.data || []);
+        const worksList = Array.isArray(worksRes) 
+          ? worksRes 
+          : (Array.isArray(worksRes?.data?.data) 
+            ? worksRes.data.data 
+            : (Array.isArray(worksRes?.data) 
+              ? worksRes.data 
+              : (Array.isArray(worksRes?.items) ? worksRes.items : [])));
         if (worksList.length > 0) {
           setDevProjects(worksList);
         }
@@ -204,6 +223,12 @@ export default function HomePage() {
         console.warn('Error loading home data:', err);
       } finally {
         setIsLoading(false);
+        // Automatically open registration modal once content finishes loading ONLY for unregistered users
+        if (!storage.isRegistered()) {
+          setShowIncompleteProfileModal(true);
+        } else {
+          setShowIncompleteProfileModal(false);
+        }
       }
     };
 
@@ -213,15 +238,22 @@ export default function HomePage() {
       const updatedUser = e?.detail || storage.getUser();
       if (updatedUser) {
         setCurrentUser(updatedUser);
+        setShowIncompleteProfileModal(false);
       }
+    };
+
+    const handleOpenReg = () => {
+      setShowIncompleteProfileModal(true);
     };
 
     window.addEventListener('pwa_profile_updated', handleProfileUpdate);
     window.addEventListener('storage', handleProfileUpdate);
+    window.addEventListener('pwa_open_registration', handleOpenReg);
 
     return () => {
       window.removeEventListener('pwa_profile_updated', handleProfileUpdate);
       window.removeEventListener('storage', handleProfileUpdate);
+      window.removeEventListener('pwa_open_registration', handleOpenReg);
     };
   }, []);
 
@@ -267,12 +299,14 @@ export default function HomePage() {
 
   const handleBannerClick = (slide) => {
     if (!slide.linkUrl) return;
-    const target = slide.linkUrl.trim();
-    if (target.startsWith('http://') || target.startsWith('https://')) {
-      window.open(target, '_blank', 'noopener,noreferrer');
-    } else {
-      navigate(target.startsWith('/') ? target : `/${target}`);
-    }
+    guardAction(() => {
+      const target = slide.linkUrl.trim();
+      if (target.startsWith('http://') || target.startsWith('https://')) {
+        window.open(target, '_blank', 'noopener,noreferrer');
+      } else {
+        navigate(target.startsWith('/') ? target : `/${target}`);
+      }
+    });
   };
 
   // Touch / Swipe support for manual sliding
@@ -351,6 +385,120 @@ export default function HomePage() {
     return () => clearInterval(timer);
   }, [displaySlides.length]);
 
+  // Category style helper for development work categories
+  const getCategoryStyle = (categoryName) => {
+    const c = String(categoryName || '').toLowerCase();
+    if (c.includes('road') || c.includes('सड़क') || c.includes('मार्ग')) {
+      return {
+        icon: 'M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7',
+        bgColor: 'bg-amber-50',
+        color: 'text-amber-600',
+        labelHi: 'सड़क निर्माण',
+        border: 'border-amber-100'
+      };
+    }
+    if (c.includes('edu') || c.includes('शिक्षा') || c.includes('स्कूल') || c.includes('college')) {
+      return {
+        icon: 'M12 14l9-5-9-5-9 5 9 5zm0 0l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14zm-4 6v-7.5l4-2.222',
+        bgColor: 'bg-blue-50',
+        color: 'text-blue-600',
+        labelHi: 'शिक्षा व स्कूल',
+        border: 'border-blue-100'
+      };
+    }
+    if (c.includes('health') || c.includes('स्वास्थ्य') || c.includes('अस्पताल') || c.includes('hospital') || c.includes('med')) {
+      return {
+        icon: 'M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z',
+        bgColor: 'bg-rose-50',
+        color: 'text-rose-600',
+        labelHi: 'स्वास्थ्य सेवा',
+        border: 'border-rose-100'
+      };
+    }
+    if (c.includes('water') || c.includes('जल') || c.includes('पानी') || c.includes('nal') || c.includes('drain')) {
+      return {
+        icon: 'M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z',
+        bgColor: 'bg-cyan-50',
+        color: 'text-cyan-600',
+        labelHi: 'जलापूर्ति / नल',
+        border: 'border-cyan-100'
+      };
+    }
+    if (c.includes('elec') || c.includes('विद्युत') || c.includes('बिजली') || c.includes('power') || c.includes('light')) {
+      return {
+        icon: 'M13 10V3L4 14h7v7l9-11h-7z',
+        bgColor: 'bg-yellow-50',
+        color: 'text-yellow-600',
+        labelHi: 'विद्युत व लाइट',
+        border: 'border-yellow-100'
+      };
+    }
+    if (c.includes('infra') || c.includes('निर्माण') || c.includes('भवन') || c.includes('bridge') || c.includes('build')) {
+      return {
+        icon: 'M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4',
+        bgColor: 'bg-emerald-50',
+        color: 'text-emerald-600',
+        labelHi: 'बुनियादी ढांचा',
+        border: 'border-emerald-100'
+      };
+    }
+    if (c.includes('agri') || c.includes('कृषि') || c.includes('किसान') || c.includes('farm')) {
+      return {
+        icon: 'M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z',
+        bgColor: 'bg-lime-50',
+        color: 'text-lime-600',
+        labelHi: 'कृषि व किसान',
+        border: 'border-lime-100'
+      };
+    }
+    if (c.includes('sport') || c.includes('खेल') || c.includes('park') || c.includes('gym')) {
+      return {
+        icon: 'M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z',
+        bgColor: 'bg-violet-50',
+        color: 'text-violet-600',
+        labelHi: 'खेल व पार्क',
+        border: 'border-violet-100'
+      };
+    }
+    return {
+      icon: 'M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4',
+      bgColor: 'bg-orange-50',
+      color: 'text-orange-600',
+      labelHi: categoryName,
+      border: 'border-orange-100'
+    };
+  };
+
+  // Dynamic development categories derived from works with counts
+  const workCategories = React.useMemo(() => {
+    const defaultList = ['Road', 'Education', 'Health', 'Water', 'Electricity', 'Infrastructure', 'Agriculture', 'Sports'];
+    const countsMap = {};
+    const existingCats = [];
+
+    (devProjects || []).forEach(w => {
+      if (w.category && w.category.trim()) {
+        const catName = w.category.trim();
+        countsMap[catName] = (countsMap[catName] || 0) + 1;
+        if (!existingCats.includes(catName)) {
+          existingCats.push(catName);
+        }
+      }
+    });
+
+    const finalCategories = existingCats.length > 0 ? existingCats : defaultList;
+    
+    return finalCategories.map(catName => {
+      const style = getCategoryStyle(catName);
+      return {
+        key: catName,
+        name: catName,
+        label: language === 'hi' ? style.labelHi : catName,
+        count: countsMap[catName] || 0,
+        ...style
+      };
+    });
+  }, [devProjects, language]);
+
   // Categories / Quick Actions Grid
   const categories = [
     { name: t('development'), icon: 'M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4', bgColor: 'bg-[#e8f5e9]', color: 'text-[#2e7d32]', path: '/works' },
@@ -410,7 +558,7 @@ export default function HomePage() {
           </button>
 
           <button
-            onClick={() => navigate('/notifications')}
+            onClick={() => guardAction(() => navigate('/notifications'))}
             className="relative text-gray-800 hover:opacity-80 active:scale-95 transition-all p-1"
             style={{ color: primaryColor }}
             title="Notifications"
@@ -428,7 +576,7 @@ export default function HomePage() {
             )}
           </button>
           <button
-            onClick={() => navigate('/search')}
+            onClick={() => guardAction(() => navigate('/search'))}
             className="text-gray-800 hover:opacity-80 active:scale-95 transition-all p-1"
             style={{ color: primaryColor }}
             title="Search"
@@ -438,7 +586,7 @@ export default function HomePage() {
             </svg>
           </button>
           <div
-            onClick={() => navigate('/my-profile')}
+            onClick={() => guardAction(() => navigate('/my-profile'))}
             className="w-9 h-9 rounded-full overflow-hidden border shadow-xs flex items-center justify-center cursor-pointer hover:scale-105 active:scale-95 transition-all"
             style={{ borderColor: `${primaryColor}40` }}
           >
@@ -553,35 +701,91 @@ export default function HomePage() {
           {/* Content Body */}
           <div className="relative z-20 w-full bg-white flex flex-col pb-8">
 
-            {/* Categories Grid */}
-            <div className="px-5 pt-6 pb-2">
-              <div className="grid grid-cols-4 gap-y-5 gap-x-2">
-                {categories.map((cat, idx) => (
+            {/* 1. Development Work Categories Section */}
+            <div className="px-5 pt-5 pb-2">
+              <div className="flex items-center justify-between mb-3.5">
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-4 rounded-full" style={{ backgroundColor: primaryColor }}></div>
+                  <h2 className="text-sm font-extrabold text-[#1e293b]">
+                    {language === 'hi' ? 'विकास कार्य श्रेणियां' : 'Development Categories'}
+                  </h2>
+                </div>
+                <button
+                  onClick={() => guardAction(() => navigate('/works'))}
+                  className="text-xs font-bold transition-opacity hover:opacity-80 flex items-center gap-0.5"
+                  style={{ color: secondaryColor }}
+                >
+                  <span>{t('viewAll')}</span>
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+                  </svg>
+                </button>
+              </div>
+
+              {/* Dynamic Categories Grid */}
+              <div className="grid grid-cols-4 gap-y-4 gap-x-2">
+                {workCategories.map((cat, idx) => (
                   <div
                     key={idx}
-                    className="flex flex-col items-center gap-2 cursor-pointer group"
-                    onClick={() => { if (cat.path) navigate(cat.path); }}
+                    className="flex flex-col items-center gap-1.5 cursor-pointer group"
+                    onClick={() => guardAction(() => navigate('/works', { state: { category: cat.key } }))}
                   >
-                    <div className={`w-12 h-12 rounded-2xl ${cat.bgColor} flex items-center justify-center shadow-sm group-hover:shadow-md group-active:scale-95 transition-all`}>
+                    <div className={`relative w-13 h-13 rounded-2xl ${cat.bgColor} border ${cat.border} flex flex-col items-center justify-center shadow-2xs group-hover:shadow-md group-active:scale-95 transition-all`}>
                       <svg className={`w-5 h-5 ${cat.color}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
                         <path strokeLinecap="round" strokeLinejoin="round" d={cat.icon} />
                       </svg>
+                      {cat.count > 0 && (
+                        <span className="absolute -top-1 -right-1 px-1.5 py-0.2 bg-slate-900 text-white text-[9px] font-black rounded-full shadow-2xs">
+                          {cat.count}
+                        </span>
+                      )}
                     </div>
-                    <span className="text-[0.6rem] font-bold text-gray-700 text-center leading-tight">{cat.name}</span>
+                    <span className="text-[0.62rem] font-extrabold text-gray-800 text-center leading-tight line-clamp-1">{cat.label}</span>
                   </div>
                 ))}
               </div>
             </div>
 
             {/* Divider */}
-            <div className="h-2 bg-[#f8fafc] my-5"></div>
+            <div className="h-1.5 bg-[#f8fafc] my-3.5"></div>
+
+            {/* 2. Key Services / Quick Actions Grid */}
+            <div className="px-5 py-1">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-4 rounded-full bg-slate-400"></div>
+                  <h2 className="text-xs font-bold uppercase tracking-wider text-gray-500">
+                    {language === 'hi' ? 'मुख्य सेवाएं' : 'Key Services'}
+                  </h2>
+                </div>
+              </div>
+              <div className="grid grid-cols-4 gap-y-4 gap-x-2">
+                {categories.map((cat, idx) => (
+                  <div
+                    key={idx}
+                    className="flex flex-col items-center gap-1.5 cursor-pointer group"
+                    onClick={() => guardAction(() => { if (cat.path) navigate(cat.path); })}
+                  >
+                    <div className={`w-11 h-11 rounded-2xl ${cat.bgColor} flex items-center justify-center shadow-2xs group-hover:shadow-sm group-active:scale-95 transition-all`}>
+                      <svg className={`w-4.5 h-4.5 ${cat.color}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                        <path strokeLinecap="round" strokeLinejoin="round" d={cat.icon} />
+                      </svg>
+                    </div>
+                    <span className="text-[0.58rem] font-bold text-gray-600 text-center leading-tight">{cat.name}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Divider */}
+            <div className="h-2 bg-[#f8fafc] my-4"></div>
 
             {/* Latest Updates / News Section */}
             <div className="px-5">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-base font-extrabold text-[#1e293b]">{t('latestUpdates')}</h2>
                 <button
-                  onClick={() => navigate('/latest-updates')}
+                  onClick={() => guardAction(() => navigate('/latest-updates'))}
                   className="text-xs font-bold transition-opacity hover:opacity-80"
                   style={{ color: secondaryColor }}
                 >
@@ -596,7 +800,7 @@ export default function HomePage() {
                   {latestUpdates.map(item => (
                     <div 
                       key={item._id || item.id} 
-                      onClick={() => navigate('/latest-updates')} 
+                      onClick={() => guardAction(() => navigate('/latest-updates'))} 
                       className="shrink-0 w-60 flex gap-3 items-center bg-[#f8fafc] rounded-2xl p-3 cursor-pointer active:scale-[0.98] transition-transform border border-gray-100 hover:border-gray-200"
                     >
                       <div className="w-16 h-16 rounded-xl overflow-hidden shrink-0 bg-gray-100">
@@ -636,7 +840,7 @@ export default function HomePage() {
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-base font-extrabold text-[#1e293b]">{t('upcomingEvents')}</h2>
                 <button
-                  onClick={() => navigate('/events')}
+                  onClick={() => guardAction(() => navigate('/events'))}
                   className="text-xs font-bold transition-opacity hover:opacity-80"
                   style={{ color: secondaryColor }}
                 >
@@ -649,7 +853,7 @@ export default function HomePage() {
                   className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide scroll-smooth"
                 >
                   {upcomingEvents.map(event => (
-                    <div key={event._id || event.id} onClick={() => navigate(`/events/${event._id || event.id}`)} className="shrink-0 w-44 rounded-2xl overflow-hidden border border-gray-100 shadow-sm cursor-pointer active:scale-[0.97] transition-transform hover:border-orange-200">
+                    <div key={event._id || event.id} onClick={() => guardAction(() => navigate(`/events/${event._id || event.id}`))} className="shrink-0 w-44 rounded-2xl overflow-hidden border border-gray-100 shadow-sm cursor-pointer active:scale-[0.97] transition-transform hover:border-orange-200">
                       <div className="w-full h-28 relative overflow-hidden bg-slate-100 flex items-center justify-center">
                         {(event.bannerUrl || (Array.isArray(event.images) && event.images.length > 0 ? event.images[0] : null) || event.image || event.img) ? (
                           <img
@@ -713,7 +917,7 @@ export default function HomePage() {
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-base font-extrabold text-[#1e293b]">{t('developmentWorks')}</h2>
                 <button
-                  onClick={() => navigate('/works')}
+                  onClick={() => guardAction(() => navigate('/works'))}
                   className="text-xs font-bold transition-opacity hover:opacity-80"
                   style={{ color: secondaryColor }}
                 >
@@ -726,7 +930,7 @@ export default function HomePage() {
                   className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide scroll-smooth"
                 >
                   {devProjects.map(proj => (
-                    <div key={proj._id || proj.id} onClick={() => navigate(`/works/${proj._id || proj.id}`)} className="shrink-0 w-40 rounded-2xl overflow-hidden border border-gray-100 shadow-sm cursor-pointer active:scale-[0.97] transition-transform">
+                    <div key={proj._id || proj.id} onClick={() => guardAction(() => navigate(`/works/${proj._id || proj.id}`))} className="shrink-0 w-40 rounded-2xl overflow-hidden border border-gray-100 shadow-sm cursor-pointer active:scale-[0.97] transition-transform">
                       <div className="w-full h-24 relative overflow-hidden bg-gray-100">
                         <img
                           src={getMediaUrl(proj.coverImageUrl || proj.img, '/highway_project.jpg')}
@@ -773,14 +977,14 @@ export default function HomePage() {
                     )}
                   </div>
                   <button
-                    onClick={() => navigate('/polls')}
+                    onClick={() => guardAction(() => navigate('/polls'))}
                     className="text-xs font-bold transition-opacity hover:opacity-80"
                     style={{ color: secondaryColor }}
                   >
                     {activePoll.userVoted || activePoll.hasVoted ? t('viewPoll') : t('voteNow')}
                   </button>
                 </div>
-                <div onClick={() => navigate('/polls')} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 cursor-pointer active:scale-[0.98] transition-transform">
+                <div onClick={() => guardAction(() => navigate('/polls'))} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 cursor-pointer active:scale-[0.98] transition-transform">
                   <p className="text-sm font-extrabold text-gray-900 mb-3 leading-snug">{activePoll.question}</p>
                   
                   <div className="flex flex-col gap-2">
@@ -815,7 +1019,7 @@ export default function HomePage() {
                   <div className="flex items-center justify-between mb-4">
                     <h2 className="text-base font-extrabold text-[#1e293b]">{t('photoGallery')}</h2>
                     <button
-                      onClick={() => navigate('/photo-gallery')}
+                      onClick={() => guardAction(() => navigate('/photo-gallery'))}
                       className="text-xs font-bold transition-opacity hover:opacity-80"
                       style={{ color: secondaryColor }}
                     >
@@ -831,7 +1035,7 @@ export default function HomePage() {
                       return (
                         <div
                           key={item._id || item.id || i}
-                          onClick={() => navigate('/photo-gallery')}
+                          onClick={() => guardAction(() => navigate('/photo-gallery'))}
                           className="shrink-0 w-44 h-36 rounded-2xl overflow-hidden cursor-pointer active:scale-[0.98] transition-all bg-slate-100 border border-gray-100 shadow-xs relative flex flex-col"
                         >
                           <div className="w-full h-full relative overflow-hidden bg-slate-100 flex items-center justify-center">
@@ -908,7 +1112,7 @@ export default function HomePage() {
                 </p>
                 <div className="mt-3 pt-2.5 border-t border-gray-200/60 flex items-center justify-between">
                   <button
-                    onClick={() => navigate('/about')}
+                    onClick={() => guardAction(() => navigate('/about'))}
                     className="text-xs font-bold hover:underline flex items-center gap-1"
                     style={{ color: primaryColor }}
                   >
@@ -919,7 +1123,7 @@ export default function HomePage() {
               </div>
             </div>
 
-            {/* Social Media & Contact Helpline Bar (Render dynamically only if present in database) */}
+            {/* Social Media & Contact Helpline Bar */}
             {(() => {
               const leaderPhone = (aboutLeader?.contactInfo?.phone || aboutLeader?.contactInfo?.mobile || tenantConfig?.tenant?.mobileNumber || tenantConfig?.branding?.contactNumber || '').trim();
               const rawWhatsapp = (aboutLeader?.socialLinks?.whatsapp || aboutLeader?.contactInfo?.whatsapp || tenantConfig?.branding?.socialLinks?.whatsapp || '').trim();
@@ -956,6 +1160,12 @@ export default function HomePage() {
                         {leaderPhone && (
                           <a 
                             href={`tel:${leaderPhone}`} 
+                            onClick={(e) => {
+                              if (!isUserRegistered()) {
+                                e.preventDefault();
+                                guardAction();
+                              }
+                            }}
                             className="flex items-center gap-2.5 bg-green-50 border border-green-200/70 p-3 rounded-xl active:scale-[0.98] transition-transform cursor-pointer"
                           >
                             <div className="w-8 h-8 rounded-lg bg-green-500 text-white flex items-center justify-center shrink-0 shadow-xs">
@@ -975,6 +1185,12 @@ export default function HomePage() {
                             href={whatsappUrl} 
                             target="_blank" 
                             rel="noreferrer" 
+                            onClick={(e) => {
+                              if (!isUserRegistered()) {
+                                e.preventDefault();
+                                guardAction();
+                              }
+                            }}
                             className="flex items-center gap-2.5 bg-emerald-50 border border-emerald-200/70 p-3 rounded-xl active:scale-[0.98] transition-transform cursor-pointer"
                           >
                             <div className="w-8 h-8 rounded-lg bg-[#25D366] text-white flex items-center justify-center shrink-0 font-black text-xs shadow-xs">
@@ -1000,6 +1216,12 @@ export default function HomePage() {
                               href={s.url} 
                               target="_blank" 
                               rel="noreferrer" 
+                              onClick={(e) => {
+                                if (!isUserRegistered()) {
+                                  e.preventDefault();
+                                  guardAction();
+                                }
+                              }}
                               className={`w-7 h-7 rounded-lg ${s.color} flex items-center justify-center shadow-sm active:scale-90 transition-transform cursor-pointer`}
                               title={s.name}
                             >
@@ -1019,7 +1241,7 @@ export default function HomePage() {
             {/* Jan Samasya CTA */}
             <div className="px-5">
               <div
-                onClick={() => navigate('/complaint')}
+                onClick={() => guardAction(() => navigate('/complaint'))}
                 className="rounded-2xl p-5 flex items-center gap-4 cursor-pointer active:scale-[0.98] transition-transform shadow-lg"
                 style={{
                   background: `linear-gradient(135deg, ${primaryColor}, ${secondaryColor || primaryColor})`
@@ -1042,6 +1264,18 @@ export default function HomePage() {
 
           </div>
         </div>
+      )}
+
+      {/* Interaction Shield for Unregistered Users */}
+      {!isUserRegistered() && !isLoading && (
+        <div 
+          onClick={(e) => {
+            e.stopPropagation();
+            toast.warn('ऐप इस्तेमाल करने के लिए रजिस्ट्रेशन करना जरूरी है!', { toastId: 'reg-req' });
+            setShowIncompleteProfileModal(true);
+          }}
+          className="fixed inset-0 z-30 bg-black/10 backdrop-blur-[1px]"
+        />
       )}
 
       {/* Fullscreen Banner Preview & Share Modal */}
@@ -1108,8 +1342,12 @@ export default function HomePage() {
       {/* Complete Incomplete Profile Modal Popup */}
       <CompleteProfileModal
         isOpen={showIncompleteProfileModal}
+        isMandatory={!isUserRegistered()}
         onClose={() => {
-          sessionStorage.setItem('pwa_skipped_profile_popup', '1');
+          if (!isUserRegistered()) {
+            toast.warn('ऐप इस्तेमाल करने के लिए रजिस्ट्रेशन करना जरूरी है!', { toastId: 'reg-req' });
+            return;
+          }
           setShowIncompleteProfileModal(false);
         }}
         onComplete={(updatedUser) => {

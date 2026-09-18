@@ -133,7 +133,7 @@ export default function LoginPage() {
       const userData = data?.user || {};
       const isNewUser = data?.isNewUser ?? !userData?.isProfileComplete;
 
-      if (!isNewUser && userData?.name) {
+      if (!isNewUser && userData?.name && (userData.isRegistered || userData.isProfileComplete)) {
         const fullUser = {
           ...userData,
           mobile: mobileNumber,
@@ -147,7 +147,7 @@ export default function LoginPage() {
           navigate(returnTo, { replace: true });
         }, 500);
       } else {
-        // New user or incomplete profile -> navigate to registration page
+        // New user or incomplete profile -> user must fill registration form
         storage.setUser({ 
           ...userData, 
           mobile: mobileNumber, 
@@ -194,33 +194,40 @@ export default function LoginPage() {
         </div>
       )}
 
-      {/* Top Floating Back & Skip Buttons */}
-      <div className="absolute top-4 left-4 right-4 z-20 flex items-center justify-between">
+      {/* Top Floating "Open App" Button */}
+      <div className="absolute top-4 right-4 z-20 flex items-center">
         <button
-          onClick={() => {
-            if (isOtpSent) {
-              setIsOtpSent(false);
-              setOtp(['', '', '', '', '', '']);
-            } else {
-              navigate('/home');
-            }
+          onClick={() => navigate('/home')}
+          className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full border text-xs font-bold shadow-xs transition-all active:scale-95"
+          style={{
+            color: primaryColor || '#ea580c',
+            backgroundColor: primaryColor ? `${primaryColor}12` : '#fff7ed',
+            borderColor: primaryColor ? `${primaryColor}35` : '#ffedd5',
           }}
-          className="w-10 h-10 rounded-full bg-gray-50 border border-gray-200 flex items-center justify-center text-gray-700 hover:bg-gray-100 active:scale-95 transition-all shadow-xs"
-          title="Back"
+          title="Open App without login"
         >
-          <HiArrowLeft className="w-5 h-5" />
-        </button>
-
-        <button
-          onClick={() => navigate('/home', { replace: true })}
-          className="px-4 py-1.5 rounded-full text-xs font-bold text-gray-700 bg-gray-100 hover:bg-gray-200 border border-gray-200 active:scale-95 transition-all shadow-xs flex items-center gap-1"
-        >
-          <span>Skip to Home</span>
-          <svg className="w-3.5 h-3.5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" />
+          <span>Open App</span>
+          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
           </svg>
         </button>
       </div>
+
+      {/* Top Floating Back Button */}
+      {isOtpSent && (
+        <div className="absolute top-4 left-4 z-20 flex items-center">
+          <button
+            onClick={() => {
+              setIsOtpSent(false);
+              setOtp(['', '', '', '', '', '']);
+            }}
+            className="w-10 h-10 rounded-full bg-gray-50 border border-gray-200 flex items-center justify-center text-gray-700 hover:bg-gray-100 active:scale-95 transition-all shadow-xs"
+            title="Back"
+          >
+            <HiArrowLeft className="w-5 h-5" />
+          </button>
+        </div>
+      )}
 
       <div className="flex-1 flex flex-col px-6 pt-16 pb-6 overflow-y-auto">
         

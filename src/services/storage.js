@@ -46,6 +46,16 @@ export const storage = {
     }
   },
 
+  // Registration Status Verification
+  isRegistered: () => {
+    const user = storage.getUser();
+    if (!user) return false;
+    const hasValidName = Boolean(user.name && user.name.trim() !== '' && user.name.toLowerCase() !== 'guest user');
+    const isMarkedRegistered = Boolean(user.isRegistered === true || user.isProfileComplete === true);
+    const hasToken = Boolean(storage.getToken());
+    return isMarkedRegistered || (hasToken && hasValidName);
+  },
+
   // Tenant Slug
   getTenantSlug: () => {
     return localStorage.getItem(KEYS.TENANT_SLUG) || '';

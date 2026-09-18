@@ -128,10 +128,11 @@ export default function RegistrationPage() {
     // Traverse down the tree matching previous selected level
     let currentNodes = areaTreeData.tree;
     for (let i = 0; i < levelIndex; i++) {
-      const prevLevel = areaTreeData.levels[i];
-      const selectedId = selectedAreas[prevLevel?._id];
+      const prevLevel = areaTreeData.levels?.[i];
+      const prevLevelId = String(prevLevel?._id || prevLevel?.id || '');
+      const selectedId = selectedAreas[prevLevelId];
       if (!selectedId) return [];
-      const matchedNode = currentNodes.find(node => String(node._id) === String(selectedId));
+      const matchedNode = currentNodes.find(node => String(node._id || node.id) === String(selectedId));
       if (!matchedNode || !Array.isArray(matchedNode.children)) return [];
       currentNodes = matchedNode.children;
     }
@@ -139,33 +140,78 @@ export default function RegistrationPage() {
   };
 
   const handleAreaSelect = (levelId, levelIndex, selectedId) => {
-    setSelectedAreas(prev => {
-      const updated = { ...prev, [levelId]: selectedId };
-      // Clear any deeper child level selections
-      for (let i = levelIndex + 1; i < areaTreeData.levels.length; i++) {
-        const childLevelId = areaTreeData.levels[i]._id;
+    const levelKey = String(levelId);
+    const updated = { ...selectedAreas };
+    
+    if (selectedId && String(selectedId).trim() !== '') {
+      updated[levelKey] = String(selectedId);
+    } else {
+      delete updated[levelKey];
+    }
+
+    // Clear any deeper child level selections
+    const levels = areaTreeData.levels || [];
+    for (let i = levelIndex + 1; i < levels.length; i++) {
+      const childLevelId = String(levels[i]?._id || levels[i]?.id || '');
+      if (childLevelId) {
         delete updated[childLevelId];
       }
-      return updated;
-    });
+    }
+    setSelectedAreas(updated);
+
+    const validIds = Object.values(updated).filter(v => v && String(v).trim() !== '');
+    const activeSelectedId = validIds.length > 0 ? validIds[validIds.length - 1] : '';
 
     // Update areaId in form with deepest selected area
     setForm(prev => ({
       ...prev,
-      areaId: selectedId || ''
+      areaId: activeSelectedId,
+      area: activeSelectedId
     }));
   };
 
   const handleSubmit = async (e) => {
     e?.preventDefault();
 
+    // Determine resolved area id
+    const validAreaIds = Object.values(selectedAreas || {}).filter(val => val && String(val).trim() !== '');
+    const resolvedAreaId = validAreaIds.length > 0 ? validAreaIds[validAreaIds.length - 1] : (form.areaId || form.area || '');
+
     // Dynamically validate all required fields from backend schema
     for (const field of formFields) {
-      if (field.required) {
-        const val = form[field.key];
-        if (val === undefined || val === null || String(val).trim() === '') {
-          toast.error(`कृपया '${field.label}' भरें / Please enter ${field.label}`);
-          return;
+      const isFieldRequired = Boolean(field.required || field.isRequired);
+      if (isFieldRequired) {
+        const isAreaField = field.type === 'area_selector' || 
+                            field.key === 'areaId' || 
+                            field.key === 'area' || 
+                            (field.label && String(field.label).toLowerCase().includes('area'));
+
+        if (isAreaField) {
+          const hasSelectedArea = Boolean(resolvedAreaId || form[field.key] || form.areaId || form.area);
+          if (!hasSelectedArea && (areaTreeData.levels || []).length > 0) {
+            toast.error(`कृपया अपना ${field.label || 'क्षेत्र'} चुनें`);
+            return;
+          }
+        } else if (field.type === 'select' || field.type === 'radio') {
+          const val = form[field.key];
+          const isValEmpty = val === undefined || 
+                             val === null || 
+                             String(val).trim() === '' || 
+                             String(val).trim().startsWith('-- Select') || 
+                             String(val).trim().startsWith('-- चुनें');
+
+          if (isValEmpty) {
+            toast.error(`कृपया ${field.label} का चयन करें`);
+            return;
+          }
+        } else {
+          const val = form[field.key];
+          const isValEmpty = val === undefined || val === null || String(val).trim() === '';
+
+          if (isValEmpty) {
+            toast.error(`कृपया ${field.label} दर्ज करें`);
+            return;
+          }
         }
       }
     }
@@ -174,14 +220,14 @@ export default function RegistrationPage() {
 
     try {
       // Structure payload: core fields + nested customFields
-      const coreKeys = ['name', 'gender', 'dob', 'address', 'areaId', 'email', 'mobile'];
+      const coreKeys = ['name', 'gender', 'dob', 'address', 'areaId', 'email', 'mobile', 'area'];
       const customFieldsObj = {};
       const payload = {
         name: form.name?.trim(),
         gender: form.gender,
         dob: form.dob || undefined,
         address: form.address?.trim() || undefined,
-        areaId: form.areaId || undefined,
+        areaId: resolvedAreaId || undefined,
         email: form.email?.trim() || undefined,
       };
 
@@ -198,6 +244,10 @@ export default function RegistrationPage() {
 
       // Call profile complete/update API (POST /registration-form/complete-profile)
       const res = await api.completeProfile(payload);
+      if (res?.token) {
+        storage.setToken(res.token);
+        api.setToken(res.token);
+      }
 
       const returnedProfile = res?.profile || res?.user || {};
       const returnedArea = res?.area || {};
@@ -214,13 +264,15 @@ export default function RegistrationPage() {
       };
       
       storage.setUser(userToSave);
+      window.dispatchEvent(new CustomEvent('pwa_profile_updated', { detail: userToSave }));
       toast.success(res?.message || (isEditing ? 'Profile updated successfully!' : 'Registration completed successfully!'));
       
+      const returnTo = location.state?.from || '/home';
       setTimeout(() => {
         if (isEditing) {
           navigate('/my-profile', { replace: true });
         } else {
-          navigate('/home', { replace: true });
+          navigate(returnTo, { replace: true });
         }
       }, 600);
     } catch (err) {
@@ -234,11 +286,12 @@ export default function RegistrationPage() {
       };
       storage.setUser(userToSave);
       toast.success(isEditing ? 'Profile updated successfully!' : 'Profile saved successfully!');
+      const returnTo = location.state?.from || '/home';
       setTimeout(() => {
         if (isEditing) {
           navigate('/my-profile', { replace: true });
         } else {
-          navigate('/home', { replace: true });
+          navigate(returnTo, { replace: true });
         }
       }, 600);
     } finally {
@@ -265,25 +318,26 @@ export default function RegistrationPage() {
 
           {levels.length > 0 ? (
             levels.map((lvl, idx) => {
+              const lvlId = String(lvl._id || lvl.id);
               const options = getAreaOptionsForLevel(idx);
-              const isParentSelected = idx === 0 || selectedAreas[levels[idx - 1]._id];
+              const prevLvlId = idx > 0 ? String(levels[idx - 1]?._id || levels[idx - 1]?.id) : null;
+              const isParentSelected = idx === 0 || selectedAreas[prevLvlId];
               if (!isParentSelected && (!options || options.length === 0)) return null;
 
               return (
-                <div key={lvl._id}>
+                <div key={lvlId}>
                   <label className="block text-xs font-bold text-gray-700 mb-1">
                     {lvl.name} {lvl.isRequired && <span className="text-red-500">*</span>}
                   </label>
                   <select
-                    value={selectedAreas[lvl._id] || ''}
-                    onChange={(e) => handleAreaSelect(lvl._id, idx, e.target.value)}
+                    value={selectedAreas[lvlId] || ''}
+                    onChange={(e) => handleAreaSelect(lvlId, idx, e.target.value)}
                     disabled={!isParentSelected}
                     className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[#f37920] bg-white disabled:bg-gray-100 disabled:text-gray-400"
-                    required={lvl.isRequired}
                   >
                     <option value="">-- {lvl.name} चुनें / Select {lvl.name} --</option>
                     {options && options.map((area) => (
-                      <option key={area._id} value={area._id}>
+                      <option key={area._id || area.id} value={area._id || area.id}>
                         {area.name} {area.code ? `(${area.code})` : ''}
                       </option>
                     ))}
@@ -472,15 +526,7 @@ export default function RegistrationPage() {
           </div>
         </div>
 
-        {!isEditing && (
-          <button
-            type="button"
-            onClick={() => navigate('/home', { replace: true })}
-            className="text-xs font-extrabold text-gray-500 hover:text-gray-800 px-3 py-1.5 rounded-lg hover:bg-gray-100 active:scale-95 transition-all shrink-0"
-          >
-            Skip →
-          </button>
-        )}
+        {/* Registration is required for new users */}
       </div>
 
       {/* Scrollable Form Body */}

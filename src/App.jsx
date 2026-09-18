@@ -20,6 +20,33 @@ import HomePage from './components/HomePage';
 import LoginPage from './components/LoginPage';
 import { setupForegroundFcmListener, syncFcmTokenIfPermitted } from './services/firebase';
 
+import CompleteProfileModal from './components/CompleteProfileModal';
+import ProtectedRoute from './components/ProtectedRoute';
+
+// Global Registration Modal Handler across all routes
+function GlobalRegistrationModal() {
+  const [isOpen, setIsOpen] = React.useState(false);
+
+  React.useEffect(() => {
+    const handleOpen = () => setIsOpen(true);
+    window.addEventListener('pwa_open_registration', handleOpen);
+    return () => window.removeEventListener('pwa_open_registration', handleOpen);
+  }, []);
+
+  if (!isOpen) return null;
+
+  return (
+    <CompleteProfileModal
+      isOpen={isOpen}
+      isMandatory={false}
+      onClose={() => setIsOpen(false)}
+      onComplete={(updatedUser) => {
+        setIsOpen(false);
+      }}
+    />
+  );
+}
+
 // Route helper to show splash on app load
 const InitialLaunch = () => {
   const hasSeenSplash = localStorage.getItem('pwa_has_seen_splash');
@@ -78,38 +105,44 @@ export default function App() {
             <ToastContainer position="top-center" autoClose={2000} hideProgressBar theme="colored" />
             {/* Global Language Selection Modal */}
             <LanguageModal />
+            {/* Global Registration Modal for all pages */}
+            <GlobalRegistrationModal />
             {/* Main content */}
             <div className="flex-1 overflow-y-auto">
               <Routes>
                 <Route path="/" element={<InitialLaunch />} />
                 <Route path="/splash" element={<SplashPage />} />
                 <Route path="/onboarding" element={<OnboardingPage />} />
-                <Route path="/home" element={<HomePage />} />
                 <Route path="/login" element={<LoginPage />} />
+                <Route path="/register" element={<RegistrationPage />} />
+
+                {/* Public & Browsing Routes */}
+                <Route path="/home" element={<HomePage />} />
                 <Route path="/about" element={<AboutPage />} />
                 <Route path="/works" element={<DevelopmentPage />} />
                 <Route path="/works/:id" element={<WorkDetailsPage />} />
                 <Route path="/events" element={<EventsPage />} />
                 <Route path="/events/:id" element={<EventDetailsPage />} />
-                <Route path="/register" element={<RegistrationPage />} />
-                <Route path="/my-profile" element={<MyProfilePage />} />
-                <Route path="/notifications" element={<NotificationsPage />} />
-                <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
-                <Route path="/terms-conditions" element={<TermsPage />} />
-                <Route path="/polls" element={<PollsPage />} />
-                <Route path="/complaint" element={<ComplaintPage />} />
-                <Route path="/my-complaints" element={<MyComplaintsPage />} />
                 <Route path="/photo-gallery" element={<PhotoGalleryPage />} />
                 <Route path="/video-gallery" element={<VideoGalleryPage />} />
                 <Route path="/latest-updates" element={<LatestUpdatesPage />} />
-                <Route path="/menu" element={<MenuPage />} />
-                {/* Future feature placeholders */}
-                <Route path="/membership" element={<MembershipPage />} />
-                <Route path="/volunteer" element={<VolunteerPage />} />
                 <Route path="/manifesto" element={<ManifestoPage />} />
                 <Route path="/search" element={<SearchPage />} />
-                <Route path="/my-area" element={<MyAreaPage />} />
-                <Route path="/poster-generator" element={<PosterGeneratorPage />} />
+                <Route path="/menu" element={<MenuPage />} />
+                <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
+                <Route path="/terms-conditions" element={<TermsPage />} />
+
+                {/* Protected Action Routes - require registration to access */}
+                <Route path="/my-profile" element={<ProtectedRoute><MyProfilePage /></ProtectedRoute>} />
+                <Route path="/notifications" element={<ProtectedRoute><NotificationsPage /></ProtectedRoute>} />
+                <Route path="/polls" element={<ProtectedRoute><PollsPage /></ProtectedRoute>} />
+                <Route path="/complaint" element={<ProtectedRoute><ComplaintPage /></ProtectedRoute>} />
+                <Route path="/my-complaints" element={<ProtectedRoute><MyComplaintsPage /></ProtectedRoute>} />
+                <Route path="/membership" element={<ProtectedRoute><MembershipPage /></ProtectedRoute>} />
+                <Route path="/volunteer" element={<ProtectedRoute><VolunteerPage /></ProtectedRoute>} />
+                <Route path="/my-area" element={<ProtectedRoute><MyAreaPage /></ProtectedRoute>} />
+                <Route path="/poster-generator" element={<ProtectedRoute><PosterGeneratorPage /></ProtectedRoute>} />
+                
                 {/* Catch‑all */}
                 <Route path="*" element={<Placeholder name="404 Not Found" />} />
               </Routes>

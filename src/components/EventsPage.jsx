@@ -4,6 +4,7 @@ import { toast } from 'react-toastify';
 import BottomNav from './BottomNav';
 import LoadingSpinner from './LoadingSpinner';
 import { eventsStorage } from '../services/eventsData';
+import { storage } from '../services/storage';
 import { api } from '../services/api';
 import { useTenant } from '../context/TenantContext';
 import { useLanguage } from '../context/LanguageContext';
@@ -121,9 +122,9 @@ export default function EventsPage() {
 
   const handleGoing = async (eventId, domEvent, eventObj) => {
     domEvent.stopPropagation();
-    if (!api.getToken()) {
-      toast.warn('पहले लॉगिन करें');
-      navigate('/login', { state: { from: '/events' } });
+    if (!storage.isRegistered()) {
+      toast.warn('ऐप इस्तेमाल करने के लिए रजिस्ट्रेशन करना जरूरी है!', { toastId: 'reg-req' });
+      window.dispatchEvent(new CustomEvent('pwa_open_registration'));
       return;
     }
     const isGoing = goingIds.has(eventId);
@@ -189,7 +190,14 @@ export default function EventsPage() {
     const isGoing = goingIds.has(event.id);
     return (
       <div
-        onClick={() => navigate(`/events/${event.id}`)}
+        onClick={() => {
+          if (!storage.isRegistered()) {
+            toast.warn('ऐप इस्तेमाल करने के लिए रजिस्ट्रेशन करना जरूरी है!', { toastId: 'reg-req' });
+            window.dispatchEvent(new CustomEvent('pwa_open_registration'));
+            return;
+          }
+          navigate(`/events/${event.id}`);
+        }}
         className="bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-100 flex flex-col hover:shadow-md cursor-pointer active:scale-[0.99] transition-all"
       >
         {/* Dynamic banner - clean image without hardcoded overlays */}

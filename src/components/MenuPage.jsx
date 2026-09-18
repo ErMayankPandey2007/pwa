@@ -42,25 +42,28 @@ export default function MenuPage() {
   });
 
   useEffect(() => {
-    const token = storage.getToken();
+    const isReg = storage.isRegistered();
     const localUser = storage.getUser();
-    if (token && localUser) {
+    if (isReg && localUser) {
       setIsLoggedIn(true);
       setUser(localUser);
 
       // Sync fresh profile in background
-      api.getCitizenProfile().then((res) => {
-        if (res?.profile) {
-          const updated = {
-            ...localUser,
-            ...res.profile,
-            photo: res.profile.profilePhoto || res.profile.photo || localUser?.photo,
-            profilePhoto: res.profile.profilePhoto || res.profile.photo || localUser?.profilePhoto,
-          };
-          setUser(updated);
-          storage.setUser(updated);
-        }
-      }).catch(() => null);
+      const token = storage.getToken();
+      if (token) {
+        api.getCitizenProfile().then((res) => {
+          if (res?.profile) {
+            const updated = {
+              ...localUser,
+              ...res.profile,
+              photo: res.profile.profilePhoto || res.profile.photo || localUser?.photo,
+              profilePhoto: res.profile.profilePhoto || res.profile.photo || localUser?.profilePhoto,
+            };
+            setUser(updated);
+            storage.setUser(updated);
+          }
+        }).catch(() => null);
+      }
     } else {
       setIsLoggedIn(false);
       setUser({ name: 'Guest User', mobile: '', district: '', assembly: '' });
@@ -68,8 +71,12 @@ export default function MenuPage() {
 
     const handleProfileUpdate = (e) => {
       const updatedUser = e?.detail || storage.getUser();
-      if (updatedUser) {
+      if (updatedUser && storage.isRegistered()) {
+        setIsLoggedIn(true);
         setUser(updatedUser);
+      } else {
+        setIsLoggedIn(false);
+        setUser({ name: 'Guest User', mobile: '', district: '', assembly: '' });
       }
     };
 
@@ -215,6 +222,16 @@ export default function MenuPage() {
     }
   ];
 
+  const handleMenuItemClick = (item) => {
+    const publicPaths = ['/privacy-policy', '/terms-conditions', '/manifesto', '/latest-updates', '/photo-gallery', '/video-gallery'];
+    if (!publicPaths.includes(item.path) && !storage.isRegistered()) {
+      toast.warn('ऐप इस्तेमाल करने के लिए रजिस्ट्रेशन करना जरूरी है!', { toastId: 'reg-req' });
+      window.dispatchEvent(new CustomEvent('pwa_open_registration'));
+      return;
+    }
+    if (item.path) navigate(item.path);
+  };
+
   return (
     <div className="relative w-full h-screen flex flex-col bg-[#f8fafc] overflow-hidden pb-[72px]">
 
@@ -248,25 +265,20 @@ export default function MenuPage() {
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 overflow-y-auto w-full p-4">
+      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
 
-        {/* User Card (Matches Profile Card) */}
-        <div className="bg-white rounded-3xl p-4 shadow-sm border border-gray-100 mb-4">
+        {/* User Card */}
+        <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
           <div className="flex items-center gap-3.5">
-            <div
-              className="w-14 h-14 rounded-2xl border-2 p-0.5 shrink-0 overflow-hidden bg-transparent shadow-xs"
-              style={{ borderColor: primaryColor }}
-            >
-              <UserAvatar
-                src={user?.profilePhoto || user?.photo}
-                name={user?.name}
-                className="w-full h-full"
-              />
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-1.5 flex-wrap">
-                <h3 className="font-extrabold text-sm text-gray-900 truncate">
-                  {user.name}
+            <UserAvatar
+              user={user}
+              size="lg"
+              className="border-2 border-orange-100 shadow-sm shrink-0"
+            />
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-1.5">
+                <h3 className="text-sm font-extrabold text-gray-900 truncate">
+                  {user.name || t('guestUser')}
                 </h3>
                 {isLoggedIn && (
                   <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-green-50 text-green-700 border border-green-200">
@@ -309,7 +321,10 @@ export default function MenuPage() {
                   </button>
                 ) : (
                   <button
-                    onClick={() => navigate('/login')}
+                    onClick={() => {
+                      toast.warn('ऐप इस्तेमाल करने के लिए रजिस्ट्रेशन करना जरूरी है!', { toastId: 'reg-req' });
+                      window.dispatchEvent(new CustomEvent('pwa_open_registration'));
+                    }}
                     className="text-xs font-bold px-3.5 py-1.5 rounded-xl text-white shadow-xs active:scale-95 transition-transform flex items-center gap-1"
                     style={{ backgroundColor: primaryColor }}
                   >
@@ -322,7 +337,7 @@ export default function MenuPage() {
         </div>
 
         {/* Menu Sections List */}
-        <div className="flex flex-col gap-5 pb-6">
+        <div className="space-y-5 pb-6">
           {menuSections.map((section, idx) => (
             <div key={idx}>
               <h2 className="text-xs font-black uppercase tracking-widest text-gray-400 mb-2 px-1">
@@ -332,7 +347,7 @@ export default function MenuPage() {
                 {section.items.map((item, itemIdx) => (
                   <div
                     key={item.id}
-                    onClick={() => item.path && navigate(item.path)}
+                    onClick={() => handleMenuItemClick(item)}
                     className={`flex items-center justify-between p-3.5 cursor-pointer active:bg-gray-50 transition-colors ${itemIdx !== section.items.length - 1 ? 'border-b border-gray-100' : ''
                       }`}
                   >

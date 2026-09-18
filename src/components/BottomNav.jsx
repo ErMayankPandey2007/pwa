@@ -2,6 +2,8 @@ import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useTenant } from '../context/TenantContext';
 import { useLanguage } from '../context/LanguageContext';
+import { storage } from '../services/storage';
+import { toast } from 'react-toastify';
 import { HiHome, HiOutlineHome } from 'react-icons/hi2';
 import { HiUser, HiOutlineUser } from 'react-icons/hi2';
 import { HiBriefcase, HiOutlineBriefcase } from 'react-icons/hi2';
@@ -67,7 +69,14 @@ export default function BottomNav() {
         return (
           <button
             key={item.id}
-            onClick={() => navigate(item.path)}
+            onClick={() => {
+              if (!storage.isRegistered() && item.path !== '/home') {
+                toast.warn('ऐप इस्तेमाल करने के लिए रजिस्ट्रेशन करना जरूरी है!', { toastId: 'reg-req' });
+                window.dispatchEvent(new CustomEvent('pwa_open_registration'));
+                return;
+              }
+              navigate(item.path);
+            }}
             className="flex flex-col items-center justify-center gap-1 w-16 h-full transition-colors"
             style={{ color: isActive ? primaryColor : undefined }}
           >

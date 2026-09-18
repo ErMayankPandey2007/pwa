@@ -85,9 +85,8 @@ export default function MyProfilePage() {
 
   useEffect(() => {
     // Initial load from local storage
-    const token = storage.getToken();
     const localUser = storage.getUser();
-    if (token && localUser) {
+    if (storage.isRegistered() && localUser) {
       setIsLoggedIn(true);
       setUser(localUser);
     } else {
@@ -96,6 +95,7 @@ export default function MyProfilePage() {
     }
 
     // Fetch live citizen profile from backend only if token exists
+    const token = storage.getToken();
     const loadCitizenProfile = async () => {
       if (!token) return;
       try {

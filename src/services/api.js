@@ -28,8 +28,40 @@ class ApiClient {
   }
 
   getTenantSlug() {
-    const slug = (import.meta.env.VITE_DEFAULT_TENANT_SLUG || '').trim();
-    return slug;
+    if (typeof window !== 'undefined') {
+      // 1. Check URL query parameters: ?slug=... or ?tenant=... or ?tenant_slug=...
+      const urlParams = new URLSearchParams(window.location.search);
+      const querySlug = urlParams.get('slug') || urlParams.get('tenant') || urlParams.get('tenant_slug');
+      if (querySlug && querySlug.trim()) {
+        const cleaned = querySlug.trim().toLowerCase();
+        try {
+          localStorage.setItem('pwa_tenant_slug', cleaned);
+        } catch (_) {}
+        return cleaned;
+      }
+
+      // 2. Check Subdomain (e.g. leader.election.digicoders.in -> leader)
+      const hostname = window.location.hostname.toLowerCase();
+      const isLocalhost = hostname === 'localhost' || hostname === '127.0.0.1';
+      if (!isLocalhost && hostname.includes('.')) {
+        const parts = hostname.split('.');
+        if (parts.length > 2 && parts[0] !== 'www' && parts[0] !== 'api' && parts[0] !== 'app') {
+          return parts[0];
+        }
+      }
+
+      // 3. Check localStorage
+      try {
+        const storedSlug = localStorage.getItem('pwa_tenant_slug');
+        if (storedSlug && storedSlug.trim()) {
+          return storedSlug.trim().toLowerCase();
+        }
+      } catch (_) {}
+    }
+
+    // 4. Fallback to env variable
+    const envSlug = (import.meta.env.VITE_DEFAULT_TENANT_SLUG || import.meta.env.VITE_TENANT_SLUG || 'demo').trim().toLowerCase();
+    return envSlug;
   }
 
   getHeaders(customHeaders = {}, isFormData = false) {
@@ -50,6 +82,7 @@ class ApiClient {
     const tenantSlug = this.getTenantSlug();
     if (tenantSlug) {
       headers['x-tenant-slug'] = tenantSlug;
+      headers['x-tenant'] = tenantSlug;
     }
 
     return headers;
@@ -59,7 +92,7 @@ class ApiClient {
     const tenantSlug = this.getTenantSlug();
     const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
     const separator = cleanEndpoint.includes('?') ? '&' : '?';
-    const url = `${this.baseUrl}${cleanEndpoint}${tenantSlug ? `${separator}tenant_slug=${encodeURIComponent(tenantSlug)}` : ''}`;
+    const url = `${this.baseUrl}${cleanEndpoint}${tenantSlug ? `${separator}tenant=${encodeURIComponent(tenantSlug)}&tenant_slug=${encodeURIComponent(tenantSlug)}` : ''}`;
     const isFormData = options.body instanceof FormData;
     const headers = this.getHeaders(options.headers, isFormData);
 
