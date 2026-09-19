@@ -39,6 +39,7 @@ export default function MyProfilePage() {
   const { language, openLanguageModal, t } = useLanguage();
   const [profileData, setProfileData] = useState(null);
   const [areaBreadcrumbs, setAreaBreadcrumbs] = useState('');
+  const [areaDetails, setAreaDetails] = useState({ block: '', panchayat: '', village: '' });
   const [user, setUser] = useState({
     name: 'Citizen',
     mobile: '',
@@ -86,16 +87,42 @@ export default function MyProfilePage() {
   useEffect(() => {
     // Initial load from local storage
     const localUser = storage.getUser();
-    if (storage.isRegistered() && localUser) {
+    const token = storage.getToken();
+    if (token || localUser?.mobile) {
       setIsLoggedIn(true);
-      setUser(localUser);
+      setUser(localUser || { mobile: localUser?.mobile || '' });
     } else {
       setIsLoggedIn(false);
       setUser({ name: 'Guest User', mobile: '', district: '', assembly: '' });
     }
 
+    // Helper to parse block, panchayat, village from breadcrumbs array or text
+    const extractAreaDetails = (breadcrumbs, breadcrumbText) => {
+      let b = '', p = '', v = '';
+      if (Array.isArray(breadcrumbs) && breadcrumbs.length > 0) {
+        breadcrumbs.forEach(item => {
+          const lvl = String(item.levelName || item.type || '').toLowerCase();
+          if (lvl.includes('block') || item.levelOrder === 1) b = item.name;
+          else if (lvl.includes('panchayat') || item.levelOrder === 2) p = item.name;
+          else if (lvl.includes('village') || lvl.includes('gram') || item.levelOrder === 3) v = item.name;
+        });
+      }
+      if (!b && !p && !v && breadcrumbText && breadcrumbText.includes('➔')) {
+        const parts = breadcrumbText.split('➔').map(s => s.trim()).filter(Boolean);
+        if (parts[0]) b = parts[0];
+        if (parts[1]) p = parts[1];
+        if (parts[2]) v = parts[2];
+      }
+      return { block: b, panchayat: p, village: v };
+    };
+
+    if (localUser?.areaDetails) {
+      setAreaDetails(localUser.areaDetails);
+    } else if (localUser?.assembly) {
+      setAreaDetails(extractAreaDetails(null, localUser.assembly));
+    }
+
     // Fetch live citizen profile from backend only if token exists
-    const token = storage.getToken();
     const loadCitizenProfile = async () => {
       if (!token) return;
       try {
@@ -106,12 +133,17 @@ export default function MyProfilePage() {
           if (liveProfile.area?.breadcrumbText) {
             setAreaBreadcrumbs(liveProfile.area.breadcrumbText);
           }
+          const parsedDetails = extractAreaDetails(liveProfile.area?.breadcrumbs, liveProfile.area?.breadcrumbText);
+          if (parsedDetails.block || parsedDetails.panchayat || parsedDetails.village) {
+            setAreaDetails(parsedDetails);
+          }
           const updated = {
             ...(localUser || {}),
             ...p,
             photo: p.profilePhoto || p.photo || localUser?.photo,
             profilePhoto: p.profilePhoto || p.photo || localUser?.profilePhoto,
             assembly: liveProfile.area?.primaryArea?.name || liveProfile.area?.breadcrumbText || localUser?.assembly || '',
+            areaDetails: parsedDetails,
           };
           setUser(updated);
           storage.setUser(updated);
@@ -665,18 +697,47 @@ export default function MyProfilePage() {
               </div>
 
               {/* Area Hierarchy */}
-              <div className="py-2.5 flex flex-col gap-1">
+              <div className="py-2.5 flex flex-col gap-1.5">
                 <span className="text-gray-400 font-semibold">{t('areaInfo')}</span>
-                <span className="font-bold text-gray-800 text-[0.72rem] leading-snug">
-                  {areaBreadcrumbs || user.assembly || 'General Area'}
-                </span>
+                {areaDetails.block || areaDetails.panchayat || areaDetails.village ? (
+                  <div className="bg-gray-50/80 rounded-xl p-2.5 border border-gray-100 space-y-1 text-[0.75rem]">
+                    {areaDetails.block && (
+                      <div className="flex items-center justify-between">
+                        <span className="text-gray-500 font-medium">Block:-</span>
+                        <span className="font-bold text-gray-900">{areaDetails.block}</span>
+                      </div>
+                    )}
+                    {areaDetails.panchayat && (
+                      <div className="flex items-center justify-between">
+                        <span className="text-gray-500 font-medium">Panchayat:-</span>
+                        <span className="font-bold text-gray-900">{areaDetails.panchayat}</span>
+                      </div>
+                    )}
+                    {areaDetails.village && (
+                      <div className="flex items-center justify-between">
+                        <span className="text-gray-500 font-medium">Village:-</span>
+                        <span className="font-bold text-gray-900">{areaDetails.village}</span>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <span className="font-bold text-gray-800 text-[0.72rem] leading-snug">
+                    {areaBreadcrumbs && areaBreadcrumbs !== 'No area registered yet'
+                      ? areaBreadcrumbs
+                      : user.assembly && user.assembly !== 'No area registered yet'
+                      ? user.assembly
+                      : (typeof user.areaId === 'object' && user.areaId?.name)
+                      ? user.areaId.name
+                      : (user.isProfileComplete || user.isRegistered ? 'Area Registered' : 'No area registered yet')}
+                  </span>
+                )}
               </div>
 
               {/* Address */}
               <div className="py-2.5 flex flex-col gap-1">
                 <span className="text-gray-400 font-semibold">{t('address')}</span>
                 <span className="font-medium text-gray-700 text-[0.72rem] leading-snug">
-                  {user.address || t('notAdded')}
+                  {user.address || user.customFields?.address || t('notAdded')}
                 </span>
               </div>
             </div>

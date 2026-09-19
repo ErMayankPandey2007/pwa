@@ -21,23 +21,30 @@ export default function MyAreaPage() {
     district: '',
     assembly: '',
     block: '',
+    panchayat: '',
     village: '',
     ward: '',
-    booth: ''
+    booth: '',
+    displayArea: ''
   });
   const [areaWorks, setAreaWorks] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+
+  // Helper to test if a string looks like a 24-character hexadecimal MongoDB ObjectId
+  const isMongoId = (val) => Boolean(val && typeof val === 'string' && /^[0-9a-fA-F]{24}$/.test(val.trim()));
 
   useEffect(() => {
     const loadData = async () => {
       // 1. Fetch live citizen profile
       let user = storage.getUser() || {};
+      let areaInfo = null;
       const token = storage.getToken();
       if (token) {
         try {
           const profileRes = await api.getCitizenProfile().catch(() => null);
           if (profileRes) {
             const freshUser = profileRes.profile || profileRes.data || profileRes;
+            areaInfo = profileRes.area || null;
             user = { ...user, ...freshUser };
             storage.setUser(user);
           }
@@ -46,21 +53,50 @@ export default function MyAreaPage() {
         }
       }
 
-      const userDistrict = user.district || user.city || '';
-      const userAssembly = user.vidhanSabha || user.assembly || user.areaName || user.constituency || user.area?.name || '';
-      const userBlock = user.block || user.tehsil || '';
-      const userVillage = user.village || user.panchayat || user.area || '';
-      const userWard = user.ward || '';
-      const userBooth = user.booth || '';
+      let userBlock = user.areaDetails?.block || user.block || '';
+      let userPanchayat = user.areaDetails?.panchayat || user.panchayat || '';
+      let userVillage = user.areaDetails?.village || user.village || '';
+      let breadcrumbText = areaInfo?.breadcrumbText || (user.assembly && user.assembly.includes('➔') ? user.assembly : '');
+
+      if (areaInfo?.breadcrumbs && Array.isArray(areaInfo.breadcrumbs)) {
+        areaInfo.breadcrumbs.forEach(item => {
+          const lvl = String(item.levelName || item.type || '').toLowerCase();
+          if (lvl.includes('block') || item.levelOrder === 1) userBlock = item.name;
+          else if (lvl.includes('panchayat') || item.levelOrder === 2) userPanchayat = item.name;
+          else if (lvl.includes('village') || lvl.includes('gram') || item.levelOrder === 3) userVillage = item.name;
+        });
+      } else if (breadcrumbText && breadcrumbText.includes('➔')) {
+        const parts = breadcrumbText.split('➔').map(s => s.trim()).filter(Boolean);
+        if (parts[0]) userBlock = parts[0];
+        if (parts[1]) userPanchayat = parts[1];
+        if (parts[2]) userVillage = parts[2];
+      }
+
+      // Filter out any raw ObjectId that might have leaked into user.area
+      if (isMongoId(userVillage)) userVillage = '';
+      if (isMongoId(userPanchayat)) userPanchayat = '';
+      if (isMongoId(userBlock)) userBlock = '';
+
+      const userDistrict = isMongoId(user.district) ? '' : (user.district || user.city || '');
+      const userAssembly = isMongoId(user.assembly) ? '' : (user.assembly || user.vidhanSabha || '');
+      const userWard = isMongoId(user.ward) ? '' : (user.ward || '');
+      const userBooth = isMongoId(user.booth) ? '' : (user.booth || '');
       const userAreaId = user.areaId || user.area?._id || user.area?.id || '';
+
+      const displayList = [userBlock, userPanchayat, userVillage, userWard].filter(s => s && !isMongoId(s));
+      const displayArea = displayList.length > 0 
+        ? displayList.join(' ➔ ') 
+        : (breadcrumbText && !breadcrumbText.includes('No area') ? breadcrumbText : (userAssembly || 'Local Constituency'));
 
       setUserArea({
         district: userDistrict,
         assembly: userAssembly,
         block: userBlock,
+        panchayat: userPanchayat,
         village: userVillage,
         ward: userWard,
-        booth: userBooth
+        booth: userBooth,
+        displayArea
       });
 
       const slug = api.getTenantSlug();
@@ -156,7 +192,7 @@ export default function MyAreaPage() {
         <div className="flex items-center gap-1.5 relative z-10 text-white/95 text-xs font-semibold px-1">
           <HiMapPin className="w-4 h-4 text-white shrink-0" />
           <p className="truncate">
-            {[userArea.village, userArea.ward, userArea.assembly, userArea.district].filter(Boolean).join(', ') || 'Local Constituency'}
+            {userArea.displayArea || 'Local Constituency'}
           </p>
         </div>
       </div>
@@ -214,7 +250,7 @@ export default function MyAreaPage() {
                         </span>
 
                         <span className="text-[0.65rem] font-bold text-gray-400 truncate">
-                          {work.area?.name || userArea.assembly || 'Constituency'}
+                          {work.area?.name || userArea.village || userArea.panchayat || userArea.block || 'Constituency'}
                         </span>
                       </div>
 
@@ -237,8 +273,8 @@ export default function MyAreaPage() {
           <div className="bg-white rounded-3xl p-8 text-center border border-dashed border-gray-200 shadow-xs mt-2">
             <HiWrenchScrewdriver className="w-10 h-10 text-gray-300 mx-auto mb-2" />
             <p className="text-sm font-bold text-gray-700">{t('ongoingWorksInfo') || 'आपके क्षेत्र में अभी कोई कार्य दर्ज नहीं है।'}</p>
-            <p className="text-xs text-gray-400 mt-1">
-              {[userArea.village, userArea.ward, userArea.assembly].filter(Boolean).join(', ') || 'No Area Specified'}
+            <p className="text-xs text-gray-500 mt-1.5 font-medium">
+              {userArea.displayArea || 'No Area Specified'}
             </p>
           </div>
         )}

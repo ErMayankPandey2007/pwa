@@ -217,18 +217,23 @@ export default function RegistrationPage() {
     }
 
     setLoading(true);
+    const currentUser = storage.getUser() || {};
+    const isEditing = Boolean(location.state?.isEditing || currentUser?.isProfileComplete);
 
     try {
       // Structure payload: core fields + nested customFields
       const coreKeys = ['name', 'gender', 'dob', 'address', 'areaId', 'email', 'mobile', 'area'];
       const customFieldsObj = {};
       const payload = {
-        name: form.name?.trim(),
-        gender: form.gender,
-        dob: form.dob || undefined,
-        address: form.address?.trim() || undefined,
-        areaId: resolvedAreaId || undefined,
-        email: form.email?.trim() || undefined,
+        userId: currentUser?._id || currentUser?.id,
+        mobile: form.mobile?.trim() || currentUser?.mobile,
+        name: form.name?.trim() || currentUser?.name,
+        gender: form.gender || currentUser?.gender,
+        dob: form.dob || currentUser?.dob || undefined,
+        address: form.address?.trim() || currentUser?.address || undefined,
+        areaId: resolvedAreaId || form.areaId || form.area || currentUser?.areaId || undefined,
+        area: resolvedAreaId || form.areaId || form.area || currentUser?.areaId || undefined,
+        email: form.email?.trim() || currentUser?.email || undefined,
       };
 
       Object.keys(form).forEach(k => {
@@ -252,15 +257,26 @@ export default function RegistrationPage() {
       const returnedProfile = res?.profile || res?.user || {};
       const returnedArea = res?.area || {};
 
+      let b = '', p = '', v = '';
+      if (Array.isArray(returnedArea.breadcrumbs)) {
+        returnedArea.breadcrumbs.forEach(item => {
+          const lvl = String(item.levelName || item.type || '').toLowerCase();
+          if (lvl.includes('block') || item.levelOrder === 1) b = item.name;
+          else if (lvl.includes('panchayat') || item.levelOrder === 2) p = item.name;
+          else if (lvl.includes('village') || lvl.includes('gram') || item.levelOrder === 3) v = item.name;
+        });
+      }
+
       const userToSave = {
-        ...user,
+        ...currentUser,
         ...form,
         ...returnedProfile,
         isRegistered: true,
         isProfileComplete: true,
         assembly: returnedArea.breadcrumbText && returnedArea.breadcrumbText !== 'No area registered yet' 
           ? returnedArea.breadcrumbText 
-          : (user?.assembly || '')
+          : (currentUser?.assembly || returnedProfile?.assembly || ''),
+        areaDetails: (b || p || v) ? { block: b, panchayat: p, village: v } : (currentUser?.areaDetails || undefined)
       };
       
       storage.setUser(userToSave);
@@ -279,7 +295,7 @@ export default function RegistrationPage() {
       console.error('API profile save error:', err);
       // Fallback local save
       const userToSave = {
-        ...user,
+        ...currentUser,
         ...form,
         isRegistered: true,
         isProfileComplete: true
@@ -321,8 +337,9 @@ export default function RegistrationPage() {
               const lvlId = String(lvl._id || lvl.id);
               const options = getAreaOptionsForLevel(idx);
               const prevLvlId = idx > 0 ? String(levels[idx - 1]?._id || levels[idx - 1]?.id) : null;
-              const isParentSelected = idx === 0 || selectedAreas[prevLvlId];
-              if (!isParentSelected && (!options || options.length === 0)) return null;
+              const isParentSelected = idx === 0 || Boolean(selectedAreas[prevLvlId]);
+              // Agar parent select nahi hua ya is level ke liye koi options/children nahi hain (jaise ward nahi hai), to yeh dropdown na dikhe
+              if (!isParentSelected || !options || options.length === 0) return null;
 
               return (
                 <div key={lvlId}>
@@ -332,8 +349,7 @@ export default function RegistrationPage() {
                   <select
                     value={selectedAreas[lvlId] || ''}
                     onChange={(e) => handleAreaSelect(lvlId, idx, e.target.value)}
-                    disabled={!isParentSelected}
-                    className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[#f37920] bg-white disabled:bg-gray-100 disabled:text-gray-400"
+                    className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[#f37920] bg-white"
                   >
                     <option value="">-- {lvl.name} चुनें / Select {lvl.name} --</option>
                     {options && options.map((area) => (

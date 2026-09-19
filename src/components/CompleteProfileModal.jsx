@@ -223,12 +223,16 @@ export default function CompleteProfileModal({ isOpen, onClose, onComplete, isMa
       }
 
       const existingUser = storage.getUser() || {};
+      const returnedArea = updatedProfile?.area || {};
       const fullUser = {
         ...existingUser,
         ...formData,
         ...updatedProfile,
         isRegistered: true,
         isProfileComplete: true,
+        assembly: returnedArea.breadcrumbText && returnedArea.breadcrumbText !== 'No area registered yet'
+          ? returnedArea.breadcrumbText
+          : (existingUser?.assembly || '')
       };
 
       storage.setUser(fullUser);
@@ -296,8 +300,8 @@ export default function CompleteProfileModal({ isOpen, onClose, onComplete, isMa
                       const lvlId = String(lvl._id || lvl.id);
                       const options = getAreaOptionsForLevel(idx);
                       const prevLvlId = idx > 0 ? String(levels[idx - 1]?._id || levels[idx - 1]?.id) : null;
-                      const isParentSelected = idx === 0 || selectedAreas[prevLvlId];
-                      if (!isParentSelected && options.length === 0) return null;
+                      const isParentSelected = idx === 0 || Boolean(selectedAreas[prevLvlId]);
+                      if (!isParentSelected || !options || options.length === 0) return null;
 
                       return (
                         <div key={lvlId}>
