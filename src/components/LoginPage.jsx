@@ -5,6 +5,8 @@ import { storage } from '../services/storage';
 import { useTenant } from '../context/TenantContext';
 import { syncFcmTokenIfPermitted } from '../services/firebase';
 import { HiArrowLeft } from 'react-icons/hi2';
+import GuestAreaModal from './GuestAreaModal';
+import CompleteProfileModal from './CompleteProfileModal';
 
 export default function LoginPage() {
   const navigate = useNavigate();
@@ -20,6 +22,8 @@ export default function LoginPage() {
   const [isVerified, setIsVerified] = useState(false);
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
+  const [showGuestAreaModal, setShowGuestAreaModal] = useState(false);
+  const [showProfileModal, setShowProfileModal] = useState(false);
 
   // Handle hardware & browser back button when on OTP screen
   useEffect(() => {
@@ -131,33 +135,25 @@ export default function LoginPage() {
       syncFcmTokenIfPermitted();
 
       const userData = data?.user || {};
-      const isNewUser = data?.isNewUser ?? !userData?.isProfileComplete;
+      const isProfileComplete = Boolean(userData?.isProfileComplete);
 
-      if (!isNewUser && userData?.name && (userData.isRegistered || userData.isProfileComplete)) {
-        const fullUser = {
-          ...userData,
-          mobile: mobileNumber,
-          isRegistered: true,
-          isProfileComplete: true
-        };
-        storage.setUser(fullUser);
-        setIsVerified(true);
+      const fullUser = {
+        ...userData,
+        mobile: mobileNumber,
+        isRegistered: isProfileComplete,
+        isProfileComplete,
+      };
+      storage.setUser(fullUser);
+      setIsVerified(true);
+
+      if (!isProfileComplete) {
+        // Profile incomplete — show registration steps before entering app
+        triggerToast('OTP verified! Please complete your profile.');
+        setTimeout(() => setShowProfileModal(true), 600);
+      } else {
         triggerToast(`Welcome back, ${fullUser.name || 'Citizen'}!`);
         setTimeout(() => {
           navigate(returnTo, { replace: true });
-        }, 500);
-      } else {
-        // New user or incomplete profile -> user must fill registration form
-        storage.setUser({ 
-          ...userData, 
-          mobile: mobileNumber, 
-          isRegistered: false, 
-          isProfileComplete: false
-        });
-        setIsVerified(true);
-        triggerToast('OTP Verified! Please complete your registration');
-        setTimeout(() => {
-          navigate('/register', { replace: true });
         }, 500);
       }
     } catch (err) {
@@ -197,7 +193,7 @@ export default function LoginPage() {
       {/* Top Floating "Open App" Button */}
       <div className="absolute top-4 right-4 z-20 flex items-center">
         <button
-          onClick={() => navigate('/home')}
+          onClick={() => setShowGuestAreaModal(true)}
           className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full border text-xs font-bold shadow-xs transition-all active:scale-95"
           style={{
             color: primaryColor || '#ea580c',
@@ -212,6 +208,35 @@ export default function LoginPage() {
           </svg>
         </button>
       </div>
+
+      {/* Guest Area Selection Modal */}
+      <GuestAreaModal
+        isOpen={showGuestAreaModal}
+        onClose={() => setShowGuestAreaModal(false)}
+        onSelectArea={() => {
+          setShowGuestAreaModal(false);
+          navigate('/home');
+        }}
+      />
+
+      {/* Profile Completion Modal — shown after OTP if profile is incomplete */}
+      <CompleteProfileModal
+        isOpen={showProfileModal}
+        isMandatory={true}
+        onClose={() => {
+          // Cannot dismiss — user must complete profile to enter app
+          // Allow close only if already registered after partial save
+          const user = storage.getUser();
+          if (user?.isProfileComplete) {
+            setShowProfileModal(false);
+            navigate(returnTo, { replace: true });
+          }
+        }}
+        onComplete={(updatedUser) => {
+          setShowProfileModal(false);
+          navigate(returnTo, { replace: true });
+        }}
+      />
 
       {/* Top Floating Back Button */}
       {isOtpSent && (

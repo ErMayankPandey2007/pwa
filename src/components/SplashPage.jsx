@@ -3,12 +3,14 @@ import { useNavigate } from 'react-router-dom';
 import { useTenant } from '../context/TenantContext';
 import { api } from '../services/api';
 import { getMediaUrl } from '../utils/mediaUrl';
+import GuestAreaModal from './GuestAreaModal';
 
 export default function SplashPage() {
   const navigate = useNavigate();
   const { branding, primaryColor, secondaryColor, leaderName, tagline, logoUrl } = useTenant();
   const [dynamicConfig, setDynamicConfig] = useState(null);
   const [currentStep, setCurrentStep] = useState(0);
+  const [showGuestAreaModal, setShowGuestAreaModal] = useState(false);
 
   useEffect(() => {
     const loadSplashConfig = async () => {
@@ -93,7 +95,7 @@ export default function SplashPage() {
       {/* Top action bar: "Skip / Open App" button */}
       <div className="absolute top-6 right-6 z-30 flex items-center gap-2">
         <button
-          onClick={handleSkipToLogin}
+          onClick={() => setShowGuestAreaModal(true)}
           className="px-4 py-1.5 rounded-full text-xs font-bold text-gray-800 shadow-md backdrop-blur-md bg-white/80 border border-gray-200 hover:bg-white active:scale-95 transition-all flex items-center gap-1.5 cursor-pointer"
         >
           <span>Open App</span>
@@ -102,6 +104,17 @@ export default function SplashPage() {
           </svg>
         </button>
       </div>
+
+      {/* Guest Area Selection Modal */}
+      <GuestAreaModal
+        isOpen={showGuestAreaModal}
+        onClose={() => setShowGuestAreaModal(false)}
+        onSelectArea={() => {
+          localStorage.setItem('pwa_has_seen_splash', 'true');
+          setShowGuestAreaModal(false);
+          navigate('/home', { replace: true });
+        }}
+      />
 
       {/* Media / Splash Screen from Backend API */}
       {currentMediaUrl ? (
@@ -241,7 +254,7 @@ export default function SplashPage() {
           </>
         ) : (
           <button
-            onClick={handleSkipToLogin}
+            onClick={() => setShowGuestAreaModal(true)}
             className="w-full py-3.5 rounded-2xl font-bold text-base text-white shadow-2xl flex items-center justify-center gap-2 active:scale-98 transition-all cursor-pointer border border-white/20"
             style={{ 
               backgroundColor: activePrimary,

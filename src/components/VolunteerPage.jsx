@@ -87,6 +87,11 @@ export default function VolunteerPage() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!storage.isRegistered()) {
+      toast.info('कार्यकर्ता आवेदन के लिए कृपया अपनी प्रोफ़ाइल पूरी करें');
+      window.dispatchEvent(new CustomEvent('pwa_open_registration'));
+      return;
+    }
     if (!formData.name || !formData.phone) {
       toast.error('Name and Phone are required');
       return;

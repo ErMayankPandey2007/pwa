@@ -410,7 +410,7 @@ export default function MyComplaintsPage() {
                 </p>
                 {isUnauthorized ? (
                   <button
-                    onClick={() => navigate('/login')}
+                    onClick={() => window.dispatchEvent(new Event('pwa_open_registration'))}
                     className="px-5 py-2 text-white font-extrabold text-xs rounded-xl shadow-md active:scale-95 transition-all"
                     style={{ backgroundColor: primaryColor }}
                   >

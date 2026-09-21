@@ -70,11 +70,6 @@ export default function BottomNav() {
           <button
             key={item.id}
             onClick={() => {
-              if (!storage.isRegistered() && item.path !== '/home') {
-                toast.warn('ऐप इस्तेमाल करने के लिए रजिस्ट्रेशन करना जरूरी है!', { toastId: 'reg-req' });
-                window.dispatchEvent(new CustomEvent('pwa_open_registration'));
-                return;
-              }
               navigate(item.path);
             }}
             className="flex flex-col items-center justify-center gap-1 w-16 h-full transition-colors"

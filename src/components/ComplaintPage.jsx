@@ -145,11 +145,10 @@ export default function ComplaintPage() {
   };
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
-    const token = storage.getToken() || api.getToken();
-    if (!token) {
-      toast.info(language === 'en' ? 'Please log in to submit a complaint' : 'शिकायत दर्ज करने के लिए कृपया लॉगिन करें');
-      navigate('/login');
+    // Check if citizen profile is registered; if not, open registration modal
+    if (!storage.isRegistered()) {
+      toast.info(language === 'en' ? 'Please complete your profile to register a complaint' : 'शिकायत दर्ज करने के लिए कृपया अपनी प्रोफ़ाइल पूरी करें');
+      window.dispatchEvent(new CustomEvent('pwa_open_registration'));
       return;
     }
     if (!selectedCategory || !formData.title.trim() || !formData.description.trim()) {

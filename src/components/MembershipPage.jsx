@@ -117,11 +117,6 @@ export default function MembershipPage() {
       const memRes = await api.getMyMembership().catch(() => null);
 
       if (!memRes) {
-        // No application at all — check token
-        if (!api.getToken()) {
-          navigate('/login', { state: { from: '/membership' } });
-          return;
-        }
         setView('no-app');
         return;
       }
@@ -197,10 +192,6 @@ export default function MembershipPage() {
   }, [navigate]);
 
   useEffect(() => {
-    if (!api.getToken()) {
-      navigate('/login', { state: { from: '/membership' } });
-      return;
-    }
     loadData();
 
     const handleProfileUpdate = async (e) => {
@@ -226,6 +217,11 @@ export default function MembershipPage() {
   // ── Submit form ─────────────────────────────────────────────────────────
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!storage.isRegistered()) {
+      toast.info('सदस्यता आवेदन के लिए कृपया अपनी प्रोफ़ाइल पूरी करें');
+      window.dispatchEvent(new CustomEvent('pwa_open_registration'));
+      return;
+    }
     if (!formData.name.trim() || !formData.phone.trim()) {
       toast.error('Name and Phone are required');
       return;

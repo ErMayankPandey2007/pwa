@@ -38,7 +38,7 @@ function GlobalRegistrationModal() {
   return (
     <CompleteProfileModal
       isOpen={isOpen}
-      isMandatory={false}
+      isMandatory={true}
       onClose={() => setIsOpen(false)}
       onComplete={(updatedUser) => {
         setIsOpen(false);
@@ -108,7 +108,7 @@ export default function App() {
             {/* Global Registration Modal for all pages */}
             <GlobalRegistrationModal />
             {/* Main content */}
-            <div className="flex-1 overflow-y-auto">
+            <div className="flex-1 w-full flex flex-col min-h-0">
               <Routes>
                 <Route path="/" element={<InitialLaunch />} />
                 <Route path="/splash" element={<SplashPage />} />
@@ -132,16 +132,16 @@ export default function App() {
                 <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
                 <Route path="/terms-conditions" element={<TermsPage />} />
 
-                {/* Protected Action Routes - require registration to access */}
-                <Route path="/my-profile" element={<ProtectedRoute><MyProfilePage /></ProtectedRoute>} />
-                <Route path="/notifications" element={<ProtectedRoute><NotificationsPage /></ProtectedRoute>} />
-                <Route path="/polls" element={<ProtectedRoute><PollsPage /></ProtectedRoute>} />
-                <Route path="/complaint" element={<ProtectedRoute><ComplaintPage /></ProtectedRoute>} />
-                <Route path="/my-complaints" element={<ProtectedRoute><MyComplaintsPage /></ProtectedRoute>} />
-                <Route path="/membership" element={<ProtectedRoute><MembershipPage /></ProtectedRoute>} />
-                <Route path="/volunteer" element={<ProtectedRoute><VolunteerPage /></ProtectedRoute>} />
-                <Route path="/my-area" element={<ProtectedRoute><MyAreaPage /></ProtectedRoute>} />
-                <Route path="/poster-generator" element={<ProtectedRoute><PosterGeneratorPage /></ProtectedRoute>} />
+                {/* App Pages - All accessible & viewable freely by citizens */}
+                <Route path="/my-profile" element={<MyProfilePage />} />
+                <Route path="/notifications" element={<NotificationsPage />} />
+                <Route path="/polls" element={<PollsPage />} />
+                <Route path="/complaint" element={<ComplaintPage />} />
+                <Route path="/my-complaints" element={<MyComplaintsPage />} />
+                <Route path="/membership" element={<MembershipPage />} />
+                <Route path="/volunteer" element={<VolunteerPage />} />
+                <Route path="/my-area" element={<MyAreaPage />} />
+                <Route path="/poster-generator" element={<PosterGeneratorPage />} />
                 
                 {/* Catch‑all */}
                 <Route path="*" element={<Placeholder name="404 Not Found" />} />

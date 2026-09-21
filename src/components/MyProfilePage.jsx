@@ -544,8 +544,8 @@ export default function MyProfilePage() {
                 type="button"
                 onClick={() => {
                   if (!isLoggedIn) {
-                    toast.info('Please log in to update your profile photo');
-                    navigate('/login');
+                    toast.info('Please register to update your profile photo');
+                    window.dispatchEvent(new Event('pwa_open_registration'));
                     return;
                   }
                   fileInputRef.current?.click();
@@ -596,7 +596,7 @@ export default function MyProfilePage() {
                   )
                 ) : (
                   <button
-                    onClick={() => navigate('/login')}
+                    onClick={() => window.dispatchEvent(new Event('pwa_open_registration'))}
                     className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-[0.7rem] font-black text-white shadow-xs active:scale-95 transition-all"
                     style={{ backgroundColor: primaryColor }}
                   >

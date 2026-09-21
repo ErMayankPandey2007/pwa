@@ -50,10 +50,17 @@ export const storage = {
   isRegistered: () => {
     const user = storage.getUser();
     if (!user) return false;
-    const hasValidName = Boolean(user.name && user.name.trim() !== '' && user.name.toLowerCase() !== 'guest user');
+    // Guest users who only selected area are not fully registered
+    if (user.isGuest) return false;
+    const hasValidName = Boolean(user.name && user.name.trim() !== '' && user.name.toLowerCase() !== 'guest' && user.name.toLowerCase() !== 'citizen');
     const isMarkedRegistered = Boolean(user.isRegistered === true || user.isProfileComplete === true);
     const hasToken = Boolean(storage.getToken());
     return isMarkedRegistered || (hasToken && hasValidName);
+  },
+
+  hasSelectedArea: () => {
+    const user = storage.getUser();
+    return Boolean(user && (user.areaId || user.area || user.assembly));
   },
 
   // Tenant Slug

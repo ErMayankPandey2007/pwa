@@ -196,10 +196,9 @@ export default function PollsPage() {
 
   // Submit Vote
   const handleSubmitVote = async (poll) => {
-    const token = storage.getToken();
-    if (!token) {
-      toast.warn('Poll me vote dene ke liye pehle Login karein');
-      navigate('/login', { state: { from: '/polls' } });
+    if (!storage.isRegistered()) {
+      toast.info(language === 'en' ? 'Please complete your profile to submit your vote' : 'वोट देने के लिए कृपया अपनी प्रोफ़ाइल पूरी करें');
+      window.dispatchEvent(new CustomEvent('pwa_open_registration'));
       return;
     }
 
