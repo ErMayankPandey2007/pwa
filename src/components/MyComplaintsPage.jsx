@@ -62,6 +62,13 @@ export default function MyComplaintsPage() {
   useEffect(() => {
     fetchMyComplaints();
     fetchPublicComplaints();
+
+    const handleProfileUpdate = () => {
+      fetchMyComplaints();
+      fetchPublicComplaints();
+    };
+    window.addEventListener('pwa_profile_updated', handleProfileUpdate);
+    return () => window.removeEventListener('pwa_profile_updated', handleProfileUpdate);
   }, [language]);
 
   const fetchMyComplaints = async () => {
@@ -248,7 +255,14 @@ export default function MyComplaintsPage() {
         </div>
 
         <button 
-          onClick={() => navigate('/complaint')} 
+          onClick={() => {
+            if (!storage.isRegistered()) {
+              toast.info(language === 'en' ? 'Please complete your profile to register a complaint' : 'शिकायत दर्ज करने के लिए कृपया अपनी प्रोफ़ाइल पूरी करें');
+              window.dispatchEvent(new CustomEvent('pwa_open_registration'));
+              return;
+            }
+            navigate('/complaint');
+          }} 
           className="flex items-center gap-1.5 px-3 py-1.5 text-white rounded-xl text-xs font-bold shadow-xs active:scale-95 transition-all shrink-0"
           style={{ backgroundColor: primaryColor }}
         >

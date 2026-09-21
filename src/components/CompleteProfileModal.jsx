@@ -38,22 +38,30 @@ export default function CompleteProfileModal({ isOpen, onClose, onComplete, isMa
   useEffect(() => {
     if (!isOpen) return;
 
+    // Reset step to 0 when modal opens
+    setCurrentStep(0);
+
     const user = storage.getUser() || {};
+    const rawName = (user.name || '').trim();
+    const isPlaceholderName = ['citizen', 'guest', 'guest user'].includes(rawName.toLowerCase());
+    const isGuestUser = Boolean(user.isGuest);
+    const isActuallyRegistered = storage.isRegistered();
+
     setFormData({
-      name: user.name || '',
-      mobile: user.mobile || '',
+      name: isPlaceholderName ? '' : rawName,
+      mobile: isActuallyRegistered ? (user.mobile || '') : '',
       gender: user.gender || 'male',
-      dob: user.dob ? user.dob.split('T')[0] : '',
+      dob: isActuallyRegistered && user.dob ? user.dob.split('T')[0] : '',
       address: user.address || '',
       areaId: user.areaId?._id || user.areaId || '',
       ...(user.customFields || {}),
     });
 
-    // Pre-fill mobile for OTP step
-    const existingMobile = user.mobile || '';
+    // Mobile OTP state:
+    // Only pre-fill and consider verified if user is already genuinely registered
+    const existingMobile = isActuallyRegistered ? (user.mobile || '') : '';
     setOtpMobile(existingMobile);
-    if (existingMobile) {
-      // If mobile already set (returning user), mark OTP as verified so step auto-passes
+    if (existingMobile && isActuallyRegistered) {
       setOtpVerified(true);
     } else {
       setOtpVerified(false);
@@ -91,8 +99,9 @@ export default function CompleteProfileModal({ isOpen, onClose, onComplete, isMa
           });
 
           // Auto-fill existing area selections from user profile or guest selection
+          let matchedAreas = null;
           if (user.selectedAreas && Object.keys(user.selectedAreas).length > 0) {
-            setSelectedAreas(user.selectedAreas);
+            matchedAreas = user.selectedAreas;
           } else if (user.areaId || user.area) {
             const targetAreaId = String(user.areaId?._id || user.areaId || user.area || '');
             if (targetAreaId && areaRes.value.tree) {
@@ -110,10 +119,20 @@ export default function CompleteProfileModal({ isOpen, onClose, onComplete, isMa
                 }
                 return null;
               };
-              const matchedPath = findPath(areaRes.value.tree);
-              if (matchedPath) {
-                setSelectedAreas(matchedPath);
-              }
+              matchedAreas = findPath(areaRes.value.tree);
+            }
+          }
+
+          if (matchedAreas && Object.keys(matchedAreas).length > 0) {
+            setSelectedAreas(matchedAreas);
+            const validIds = Object.values(matchedAreas).filter(v => v && String(v).trim() !== '');
+            const activeId = validIds.length > 0 ? validIds[validIds.length - 1] : '';
+            if (activeId) {
+              setFormData(prev => ({
+                ...prev,
+                areaId: activeId,
+                area: activeId,
+              }));
             }
           }
         }
@@ -471,10 +490,12 @@ export default function CompleteProfileModal({ isOpen, onClose, onComplete, isMa
         ...updatedProfile,
         isRegistered: true,
         isProfileComplete: true,
+        isGuest: false,
         assembly: returnedArea.breadcrumbText && returnedArea.breadcrumbText !== 'No area registered yet'
           ? returnedArea.breadcrumbText
           : (existingUser?.assembly || '')
       };
+      delete fullUser.isGuest;
 
       storage.setUser(fullUser);
       window.dispatchEvent(new CustomEvent('pwa_profile_updated', { detail: fullUser }));
@@ -482,6 +503,11 @@ export default function CompleteProfileModal({ isOpen, onClose, onComplete, isMa
       
       if (onComplete) onComplete(fullUser);
       if (onClose) onClose();
+
+      // Soft reload after a brief moment to ensure all components and caches refresh seamlessly
+      setTimeout(() => {
+        window.location.reload();
+      }, 400);
     } catch (err) {
       toast.error(err?.message || 'Failed to complete registration');
     } finally {

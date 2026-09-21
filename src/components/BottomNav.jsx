@@ -10,7 +10,7 @@ import { HiBriefcase, HiOutlineBriefcase } from 'react-icons/hi2';
 import { HiCalendarDays, HiOutlineCalendarDays } from 'react-icons/hi2';
 import { HiSquares2X2, HiOutlineSquares2X2 } from 'react-icons/hi2';
 
-export default function BottomNav() {
+export default function BottomNav({ onNavigate }) {
   const navigate = useNavigate();
   const location = useLocation();
   const { primaryColor } = useTenant();
@@ -21,6 +21,17 @@ export default function BottomNav() {
   if (currentPath !== '/home' && currentPath !== '/') {
     return null;
   }
+
+  // Use custom onNavigate if provided (for area check), else fallback to navigate
+  const handleNav = (path) => {
+    if (path === '/home') {
+      navigate(path);
+    } else if (typeof onNavigate === 'function') {
+      onNavigate(path);
+    } else {
+      navigate(path);
+    }
+  };
 
   const navItems = [
     {
@@ -70,7 +81,7 @@ export default function BottomNav() {
           <button
             key={item.id}
             onClick={() => {
-              navigate(item.path);
+              handleNav(item.path);
             }}
             className="flex flex-col items-center justify-center gap-1 w-16 h-full transition-colors"
             style={{ color: isActive ? primaryColor : undefined }}

@@ -22,6 +22,7 @@ export default function HomePage() {
   const [activePoll, setActivePoll] = useState(null);
   const [currentUser, setCurrentUser] = useState(null);
   const [showGuestAreaModal, setShowGuestAreaModal] = useState(false);
+  const [pendingNavPath, setPendingNavPath] = useState(null); // path to go after area selection
   const [tenantConfig, setTenantConfig] = useState(null);
   const [banners, setBanners] = useState([]);
   const [latestUpdates, setLatestUpdates] = useState([]);
@@ -64,6 +65,19 @@ export default function HomePage() {
 
   const isUserRegistered = () => {
     return storage.isRegistered();
+  };
+
+  // Navigate with area check: if guest hasn't selected area yet, show GuestAreaModal first
+  const navigateWithAreaCheck = (path) => {
+    if (!path) return;
+    if (storage.hasSelectedArea()) {
+      // Area already selected — navigate freely (CompleteProfileModal will guard actions within page)
+      navigate(path);
+    } else {
+      // First-time guest — must pick area before browsing pages
+      setPendingNavPath(path);
+      setShowGuestAreaModal(true);
+    }
   };
 
   const guardAction = (actionCallback) => {
@@ -215,7 +229,6 @@ export default function HomePage() {
         console.warn('Error loading home data:', err);
       } finally {
         setIsLoading(false);
-        setShowIncompleteProfileModal(false);
         setShowGuestAreaModal(false);
       }
     };
@@ -226,12 +239,7 @@ export default function HomePage() {
       const updatedUser = e?.detail || storage.getUser();
       if (updatedUser) {
         setCurrentUser(updatedUser);
-        setShowIncompleteProfileModal(false);
       }
-    };
-
-    const handleOpenReg = () => {
-      setShowIncompleteProfileModal(true);
     };
 
     window.addEventListener('pwa_profile_updated', handleProfileUpdate);
@@ -289,7 +297,8 @@ export default function HomePage() {
     if (target.startsWith('http://') || target.startsWith('https://')) {
       window.open(target, '_blank', 'noopener,noreferrer');
     } else {
-      navigate(target.startsWith('/') ? target : `/${target}`);
+      const route = target.startsWith('/') ? target : `/${target}`;
+      navigateWithAreaCheck(route);
     }
   };
 
@@ -712,7 +721,7 @@ export default function HomePage() {
                   <div
                     key={idx}
                     className="flex flex-col items-center gap-1.5 cursor-pointer group"
-                    onClick={() => navigate('/works', { state: { category: cat.key } })}
+                    onClick={() => navigateWithAreaCheck('/works')}
                   >
                     <div className={`relative w-13 h-13 rounded-2xl ${cat.bgColor} border ${cat.border} flex flex-col items-center justify-center shadow-2xs group-hover:shadow-md group-active:scale-95 transition-all`}>
                       <svg className={`w-5 h-5 ${cat.color}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
@@ -749,7 +758,8 @@ export default function HomePage() {
                     key={idx}
                     className="flex flex-col items-center gap-1.5 cursor-pointer group"
                     onClick={() => {
-                      if (cat.path) navigate(cat.path);
+                      if (!cat.path) return;
+                      navigateWithAreaCheck(cat.path);
                     }}
                   >
                     <div className={`w-11 h-11 rounded-2xl ${cat.bgColor} flex items-center justify-center shadow-2xs group-hover:shadow-sm group-active:scale-95 transition-all`}>
@@ -771,7 +781,7 @@ export default function HomePage() {
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-base font-extrabold text-[#1e293b]">{t('latestUpdates')}</h2>
                 <button
-                  onClick={() => navigate('/latest-updates')}
+                  onClick={() => navigateWithAreaCheck('/latest-updates')}
                   className="text-xs font-bold transition-opacity hover:opacity-80"
                   style={{ color: secondaryColor }}
                 >
@@ -786,7 +796,7 @@ export default function HomePage() {
                   {latestUpdates.map(item => (
                     <div 
                       key={item._id || item.id} 
-                      onClick={() => navigate('/latest-updates')} 
+                      onClick={() => navigateWithAreaCheck('/latest-updates')} 
                       className="shrink-0 w-60 flex gap-3 items-center bg-[#f8fafc] rounded-2xl p-3 cursor-pointer active:scale-[0.98] transition-transform border border-gray-100 hover:border-gray-200"
                     >
                       <div className="w-16 h-16 rounded-xl overflow-hidden shrink-0 bg-gray-100">
@@ -826,7 +836,7 @@ export default function HomePage() {
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-base font-extrabold text-[#1e293b]">{t('upcomingEvents')}</h2>
                 <button
-                  onClick={() => navigate('/events')}
+                  onClick={() => navigateWithAreaCheck('/events')}
                   className="text-xs font-bold transition-opacity hover:opacity-80"
                   style={{ color: secondaryColor }}
                 >
@@ -839,7 +849,7 @@ export default function HomePage() {
                   className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide scroll-smooth"
                 >
                   {upcomingEvents.map(event => (
-                    <div key={event._id || event.id} onClick={() => navigate(`/events/${event._id || event.id}`)} className="shrink-0 w-44 rounded-2xl overflow-hidden border border-gray-100 shadow-sm cursor-pointer active:scale-[0.97] transition-transform hover:border-orange-200">
+                    <div key={event._id || event.id} onClick={() => navigateWithAreaCheck(`/events/${event._id || event.id}`)} className="shrink-0 w-44 rounded-2xl overflow-hidden border border-gray-100 shadow-sm cursor-pointer active:scale-[0.97] transition-transform hover:border-orange-200">
                       <div className="w-full h-28 relative overflow-hidden bg-slate-100 flex items-center justify-center">
                         {(event.bannerUrl || (Array.isArray(event.images) && event.images.length > 0 ? event.images[0] : null) || event.image || event.img) ? (
                           <img
@@ -903,7 +913,7 @@ export default function HomePage() {
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-base font-extrabold text-[#1e293b]">{t('developmentWorks')}</h2>
                 <button
-                  onClick={() => navigate('/works')}
+                  onClick={() => navigateWithAreaCheck('/works')}
                   className="text-xs font-bold transition-opacity hover:opacity-80"
                   style={{ color: secondaryColor }}
                 >
@@ -916,7 +926,7 @@ export default function HomePage() {
                   className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide scroll-smooth"
                 >
                   {devProjects.map(proj => (
-                    <div key={proj._id || proj.id} onClick={() => navigate(`/works/${proj._id || proj.id}`)} className="shrink-0 w-40 rounded-2xl overflow-hidden border border-gray-100 shadow-sm cursor-pointer active:scale-[0.97] transition-transform">
+                    <div key={proj._id || proj.id} onClick={() => navigateWithAreaCheck(`/works/${proj._id || proj.id}`)} className="shrink-0 w-40 rounded-2xl overflow-hidden border border-gray-100 shadow-sm cursor-pointer active:scale-[0.97] transition-transform">
                       <div className="w-full h-24 relative overflow-hidden bg-gray-100">
                         <img
                           src={getMediaUrl(
@@ -969,14 +979,14 @@ export default function HomePage() {
                     )}
                   </div>
                   <button
-                    onClick={() => navigate('/polls')}
+                    onClick={() => navigateWithAreaCheck('/polls')}
                     className="text-xs font-bold transition-opacity hover:opacity-80"
                     style={{ color: secondaryColor }}
                   >
                     {activePoll.userVoted || activePoll.hasVoted ? t('viewPoll') : t('voteNow')}
                   </button>
                 </div>
-                <div onClick={() => navigate('/polls')} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 cursor-pointer active:scale-[0.98] transition-transform">
+                <div onClick={() => navigateWithAreaCheck('/polls')} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 cursor-pointer active:scale-[0.98] transition-transform">
                   <p className="text-sm font-extrabold text-gray-900 mb-3 leading-snug">{activePoll.question}</p>
                   
                   <div className="flex flex-col gap-2">
@@ -1011,7 +1021,7 @@ export default function HomePage() {
                   <div className="flex items-center justify-between mb-4">
                     <h2 className="text-base font-extrabold text-[#1e293b]">{t('photoGallery')}</h2>
                     <button
-                      onClick={() => navigate('/photo-gallery')}
+                      onClick={() => navigateWithAreaCheck('/photo-gallery')}
                       className="text-xs font-bold transition-opacity hover:opacity-80"
                       style={{ color: secondaryColor }}
                     >
@@ -1027,7 +1037,7 @@ export default function HomePage() {
                       return (
                         <div
                           key={item._id || item.id || i}
-                          onClick={() => navigate('/photo-gallery')}
+                          onClick={() => navigateWithAreaCheck('/photo-gallery')}
                           className="shrink-0 w-44 h-36 rounded-2xl overflow-hidden cursor-pointer active:scale-[0.98] transition-all bg-slate-100 border border-gray-100 shadow-xs relative flex flex-col"
                         >
                           <div className="w-full h-full relative overflow-hidden bg-slate-100 flex items-center justify-center">
@@ -1104,7 +1114,7 @@ export default function HomePage() {
                 </p>
                 <div className="mt-3 pt-2.5 border-t border-gray-200/60 flex items-center justify-between">
                   <button
-                    onClick={() => navigate('/about')}
+                    onClick={() => navigateWithAreaCheck('/about')}
                     className="text-xs font-bold hover:underline flex items-center gap-1"
                     style={{ color: primaryColor }}
                   >
@@ -1233,7 +1243,7 @@ export default function HomePage() {
             {/* Jan Samasya CTA */}
             <div className="px-5">
               <div
-                onClick={() => guardAction(() => navigate('/complaint'))}
+                onClick={() => navigateWithAreaCheck('/complaint')}
                 className="rounded-2xl p-5 flex items-center gap-4 cursor-pointer active:scale-[0.98] transition-transform shadow-lg"
                 style={{
                   background: `linear-gradient(135deg, ${primaryColor}, ${secondaryColor || primaryColor})`
@@ -1324,14 +1334,23 @@ export default function HomePage() {
       {/* First-time Area Selection Modal for Guest browsing */}
       <GuestAreaModal
         isOpen={showGuestAreaModal}
-        onClose={() => setShowGuestAreaModal(false)}
+        onClose={() => {
+          setShowGuestAreaModal(false);
+          setPendingNavPath(null);
+        }}
         onSelectArea={(guestUser) => {
           setCurrentUser(guestUser);
           setShowGuestAreaModal(false);
+          // Navigate to pending page after area selection
+          if (pendingNavPath) {
+            const path = pendingNavPath;
+            setPendingNavPath(null);
+            navigate(path);
+          }
         }}
       />
 
-      <BottomNav />
+      <BottomNav onNavigate={navigateWithAreaCheck} />
     </div>
   );
 }

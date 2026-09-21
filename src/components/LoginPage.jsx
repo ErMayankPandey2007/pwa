@@ -193,7 +193,9 @@ export default function LoginPage() {
       {/* Top Floating "Open App" Button */}
       <div className="absolute top-4 right-4 z-20 flex items-center">
         <button
-          onClick={() => setShowGuestAreaModal(true)}
+          onClick={() => {
+            navigate('/home', { replace: true });
+          }}
           className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full border text-xs font-bold shadow-xs transition-all active:scale-95"
           style={{
             color: primaryColor || '#ea580c',
@@ -215,7 +217,7 @@ export default function LoginPage() {
         onClose={() => setShowGuestAreaModal(false)}
         onSelectArea={() => {
           setShowGuestAreaModal(false);
-          navigate('/home');
+          navigate('/home', { replace: true });
         }}
       />
 

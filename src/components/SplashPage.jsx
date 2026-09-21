@@ -95,7 +95,10 @@ export default function SplashPage() {
       {/* Top action bar: "Skip / Open App" button */}
       <div className="absolute top-6 right-6 z-30 flex items-center gap-2">
         <button
-          onClick={() => setShowGuestAreaModal(true)}
+          onClick={() => {
+            localStorage.setItem('pwa_has_seen_splash', 'true');
+            navigate('/home', { replace: true });
+          }}
           className="px-4 py-1.5 rounded-full text-xs font-bold text-gray-800 shadow-md backdrop-blur-md bg-white/80 border border-gray-200 hover:bg-white active:scale-95 transition-all flex items-center gap-1.5 cursor-pointer"
         >
           <span>Open App</span>
@@ -254,7 +257,10 @@ export default function SplashPage() {
           </>
         ) : (
           <button
-            onClick={() => setShowGuestAreaModal(true)}
+            onClick={() => {
+              localStorage.setItem('pwa_has_seen_splash', 'true');
+              navigate('/home', { replace: true });
+            }}
             className="w-full py-3.5 rounded-2xl font-bold text-base text-white shadow-2xl flex items-center justify-center gap-2 active:scale-98 transition-all cursor-pointer border border-white/20"
             style={{ 
               backgroundColor: activePrimary,

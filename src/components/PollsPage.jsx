@@ -104,6 +104,10 @@ export default function PollsPage() {
 
   useEffect(() => {
     loadPolls();
+
+    const handleProfileUpdate = () => loadPolls();
+    window.addEventListener('pwa_profile_updated', handleProfileUpdate);
+    return () => window.removeEventListener('pwa_profile_updated', handleProfileUpdate);
   }, []);
 
   // Format countdown / duration helper
